@@ -55,3 +55,6 @@ Brugerens feedback: informationsarkitekturen er svær at finde rundt i, kortet o
 | 9 | Navnekonflikter (`.box`, `.dl`) ødelagde søgefelt og menu | Rettet |
 
 Alle fire testopgaver og politikerens opgave kører stadig igennem (automatisk test, ikke brugertest).
+
+## Runde 3: valgfelterne i sætningen
+Fund: teksten blev klippet af pilen ("Folketingsvalg (eksempel)"), felterne lignede markeringer mere end knapper (kontrast ca. 1,2:1 mod baggrunden), den massive trekant var gammeldags, styresystemets liste passede ikke til designet og havde 104 punkter uden søgning, og der var ingen tydelig tilstand. Rettet med en ny komponent: knap med chevron og kant (over 3:1), eget panel med søgning, grupper og "Din kommune", tastaturstyring, panel nedefra på mobil og kort bekræftelse ved skift.

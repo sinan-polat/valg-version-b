@@ -63,7 +63,10 @@
     const sortRows = (rows, mode, key) => rows.slice().sort(mode === 'alpha' ? (a, b) => a.p.localeCompare(b.p, 'da') : (a, b) => (b[key] || 0) - (a[key] || 0) || b.m - a.m || a.p.localeCompare(b.p, 'da'));
 
     /* ---------- tilstand ---------- */
-    const DEF = { do: 'se', hv: 'mand', omr: 'land', omr2: null, valg: 'kv2025', fmt: 'excel', side: null, sort: 'size', cmp: 'stem' };
+    /* seneste valg med rigtige datoer vælges automatisk (i dag Kommunalvalg 2025) */
+    const yearOf = k => +((String(ELS[k].date || '').match(/\d{4}/) || [0])[0]);
+    const LATEST = Object.keys(ELS).sort((a, b) => yearOf(b) - yearOf(a))[0] || 'kv2025';
+    const DEF = { do: 'se', hv: 'mand', omr: 'land', omr2: null, valg: LATEST, fmt: 'excel', side: null, sort: 'size', cmp: 'stem' };
     const sideOf = st => st.side || (st.valg === 'fv' ? 'prikker' : 'kort');
     let ST = Object.assign({}, DEF);
     let current = null; // { pick }
@@ -85,7 +88,6 @@
     function fromQuery(q) {
       const st = Object.assign({}, DEF);
       ['do', 'hv', 'omr', 'omr2', 'valg', 'fmt', 'side', 'sort', 'cmp'].forEach(k => { if (q && q[k]) st[k] = q[k]; });
-      if (!(q && q.omr)) { const f = loadFoc(); if (f) st.omr = f; }
       return normalize(st);
     }
     function toHash(st) {
@@ -98,17 +100,77 @@
     }
 
     /* ---------- små byggeklodser ---------- */
+    /* valgfelt i sætningen (v9): knap + eget panel med søgning, grupper og tastaturstyring */
+    const fold = t => String(t).toLowerCase().replace(/aa/g, 'å').normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const cleanT = t => String(t).replace(/\s*\(eksempel\)$/, '');
+    let popOpen = null;
+    function closePop(back) {
+      if (!popOpen) return; const { pop, bd, btn, onDoc, onWin } = popOpen; popOpen = null;
+      document.removeEventListener('mousedown', onDoc, true); window.removeEventListener('resize', onWin); window.removeEventListener('scroll', onWin, true);
+      pop.remove(); if (bd) bd.remove(); btn.setAttribute('aria-expanded', 'false'); if (back && btn.isConnected) btn.focus();
+    }
+    window.addEventListener('hashchange', () => closePop(false));
     function slot(label, groups, val, on, key) {
-      const sel = h('select', { class: 'slotsel', 'aria-label': label, 'data-k': key });
       let txt = '';
-      groups.forEach(g => {
-        const parent = g.label ? h('optgroup', { label: g.label }) : sel;
-        g.items.forEach(([v, t]) => { const o = h('option', { value: v }, t); if (v === val) { o.selected = true; txt = t; } parent.append(o); });
-        if (g.label) sel.append(parent);
-      });
-      const sz = h('span', { class: 'slotsz', 'aria-hidden': 'true' }, txt);
-      sel.addEventListener('change', () => { sz.textContent = sel.options[sel.selectedIndex].text; on(sel.value); });
-      return h('span', { class: 'slot' }, sz, sel, h('i', { class: 'caret', 'aria-hidden': 'true' }));
+      groups.forEach(g => g.items.forEach(([v, t]) => { if (v === val) txt = t; }));
+      const chev = '<svg class="chev" viewBox="0 0 12 8" aria-hidden="true" focusable="false"><path d="M1.5 1.5 6 6l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      const btn = h('button', { type: 'button', class: 'slot', 'data-k': key, 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-label': `${label}: ${cleanT(txt)}. Tryk for at ændre` }, h('span', { class: 'sl-t' }, cleanT(txt)));
+      btn.insertAdjacentHTML('beforeend', chev);
+      const open = (startAt) => {
+        if (popOpen && popOpen.btn === btn) { closePop(true); return; }
+        closePop(false);
+        const all = groups.reduce((n, g) => n + g.items.length, 0), withSearch = all > 10;
+        let grp = groups;
+        const foc = loadFoc();
+        if ((key === 'omr' || key === 'omr2') && foc && foc !== val && groups.some(g => g.items.some(([v]) => v === foc))) grp = [{ label: 'Din kommune', items: [[foc, byId[foc].name]] }].concat(groups);
+        const lid = 'sp-' + key, mobile = matchMedia('(max-width:600px)').matches;
+        const list = h('ul', { class: 'sp-list', role: 'listbox', id: lid, 'aria-label': label, tabindex: withSearch ? null : '-1' });
+        const inp = withSearch ? h('input', { type: 'text', class: 'sp-q', placeholder: 'Skriv for at søge …', 'aria-label': 'Søg i ' + label.toLowerCase(), role: 'combobox', 'aria-controls': lid, 'aria-expanded': 'true', 'aria-autocomplete': 'list', autocomplete: 'off' }) : null;
+        const pop = h('div', { class: 'slotpop' + (mobile ? ' sheet' : '') }, mobile ? h('div', { class: 'sp-head' }, h('strong', {}, label), h('button', { type: 'button', class: 'sp-x', 'aria-label': 'Luk', onclick: () => closePop(true) }, '×')) : null, inp, list);
+        let opts = [], act = 0;
+        const paint = () => {
+          const q = inp ? fold(inp.value.trim()) : '';
+          list.innerHTML = ''; opts = []; let n = 0;
+          grp.forEach((g, gi) => {
+            const items = g.items.filter(([, t]) => !q || fold(t).includes(q));
+            if (!items.length) return;
+            if (g.label) list.append(h('li', { class: 'sp-g', role: 'presentation' }, g.label));
+            items.forEach(([v, t]) => { const li = h('li', { role: 'option', id: `${lid}-${n++}`, class: 'sp-o', 'data-v': v, 'aria-selected': String(v === val) }, h('span', {}, t)); li.addEventListener('mousedown', e => e.preventDefault()); li.addEventListener('click', () => choose(v)); li.addEventListener('mousemove', () => setAct(opts.indexOf(li))); list.append(li); opts.push(li); });
+          });
+          if (!opts.length) list.append(h('li', { class: 'sp-empty', role: 'presentation' }, 'Ingen match – prøv et andet navn'));
+          setAct(q ? 0 : Math.max(0, opts.findIndex(o => o.dataset.v === val)));
+        };
+        const setAct = (i, mid) => { if (!opts.length) return; act = Math.max(0, Math.min(opts.length - 1, i)); opts.forEach((o, j) => o.classList.toggle('act', j === act)); const o = opts[act]; (inp || list).setAttribute('aria-activedescendant', o.id); if (mid) list.scrollTop = Math.max(0, o.offsetTop - list.clientHeight / 2 + o.offsetHeight / 2); else o.scrollIntoView({ block: 'nearest' }); };
+        const choose = v => { closePop(false); if (v !== val) on(v); else btn.focus(); };
+        const onKey = e => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setAct(act + 1); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setAct(act - 1); }
+          else if (e.key === 'Home' && !inp) { e.preventDefault(); setAct(0); }
+          else if (e.key === 'End' && !inp) { e.preventDefault(); setAct(opts.length - 1); }
+          else if (e.key === 'Enter' || (e.key === ' ' && !inp)) { e.preventDefault(); if (opts[act]) choose(opts[act].dataset.v); }
+          else if (e.key === 'Escape') { e.preventDefault(); closePop(true); }
+          else if (e.key === 'Tab') closePop(false);
+        };
+        (inp || list).addEventListener('keydown', onKey);
+        if (inp) inp.addEventListener('input', paint);
+        let bd = null;
+        if (mobile) { bd = h('div', { class: 'sp-back' }); bd.addEventListener('click', () => closePop(true)); document.body.append(bd); }
+        document.body.append(pop);
+        const place = () => { if (mobile) return; const r = btn.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight; let x = Math.min(r.left, innerWidth - pw - 12), y = r.bottom + 6; if (y + ph > innerHeight - 8 && r.top - ph - 6 > 8) y = r.top - ph - 6; pop.style.left = Math.max(8, x) + 'px'; pop.style.top = y + 'px'; };
+        paint(); place(); if (opts[act]) setAct(act, true);
+        const onDoc = e => { if (!pop.contains(e.target) && !btn.contains(e.target)) closePop(false); };
+        const onWin = e => { if (e && e.type === 'scroll' && pop.contains(e.target)) return; closePop(false); };
+        document.addEventListener('mousedown', onDoc, true); window.addEventListener('resize', onWin); window.addEventListener('scroll', onWin, true);
+        popOpen = { pop, bd, btn, onDoc, onWin };
+        btn.setAttribute('aria-expanded', 'true');
+        if (startAt === 'last') setAct(opts.length - 1);
+        (inp || list).focus();
+      };
+      btn.addEventListener('click', () => open());
+      btn.addEventListener('keydown', e => { if (e.key === 'ArrowDown') { e.preventDefault(); open(); } else if (e.key === 'ArrowUp') { e.preventDefault(); open('last'); } });
+      const wrap = [btn];
+      if (/\(eksempel\)$/.test(txt)) wrap.push(h('span', { class: 'slot-note' }, 'eksempeldata'));
+      return wrap.length > 1 ? h('span', { class: 'slotw' }, wrap) : btn;
     }
     const areaGroups = (valg, doing) => valg === 'fv'
       ? [{ items: [['land', 'hele landet']] }, { label: 'Storkredse', items: FV.storkredse.map(x => [x.id, x.name]) }]
@@ -318,7 +380,7 @@
         sentenceBox.append(h('p', { class: 'sent' }, parts));
         const t1 = $('#dh1', el); if (t1) t1.textContent = H1[ST.do];
         document.title = H1[ST.do] + ' – valg.dk prototype (version D)';
-        if (focusKey) { const f = $(`[data-k="${focusKey}"]`, sentenceBox); if (f) f.focus(); }
+        if (focusKey) { const f = $(`[data-k="${focusKey}"]`, sentenceBox); if (f) { f.focus(); if (!RM) f.animate([{ transform: 'scale(1.08)', boxShadow: '0 0 0 0 rgba(220,206,117,.95)' }, { transform: 'scale(1)', boxShadow: '0 0 0 10px rgba(220,206,117,0)' }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' }); } }
       }
 
       /* ---- svaret ---- */

@@ -24,7 +24,7 @@ Opdater siden: git add . / git commit -m "Opdatering" / git push.
 
 ## Version C – nyt design: valgaften, kredse og kandidater
 
-Åbn `?v=c` (fx `https://sinan-polat.github.io/valg.dk/?v=c`). Standard er stadig version B, så A/B-testen ikke ændrer sig. Vil du gøre C til standard, så ret den ene linje i `js/ver.js` (`: 'b'` → `: 'c'`).
+Åbn `?v=c` (fx `https://sinan-polat.github.io/valg.dk/?v=c`). Standard er nu version D (se nedenfor); testpanelet `?test=1` åbner stadig version B. Vil du gøre C til standard, så ret den ene linje i `js/ver.js` (`: 'b'` → `: 'c'`).
 
 | Nyt | Hvor | Hvad |
 |---|---|---|
@@ -57,7 +57,7 @@ Siden har `noindex`, så søgemaskiner ikke bør vise den, men et offentligt lin
 
 ## Version D – "Sætningen" (nyt design, revideret koncept)
 
-Åbn `?v=d` (fx `https://sinanp.dk/valg2/?v=d`). Standard er stadig version B, så A/B-testen ikke ændrer sig. **Version D er ikke en del af A/B-testen**; den er det reviderede koncept, som rapportens afsnit 7.5 (forbedringsforslag), 9.5 og perspektivering peger på, og som kan bruges til en opfølgende test.
+**Version D er nu standard**: forsiden (uden `?v=`) viser D med det seneste valg for hele landet. A/B-testen er uændret: testpanelet (`?test=1`) åbner version B, og panelets knapper skifter til `?test=1&v=a` eller `?test=1&v=b`. Ældre versioner kan altid åbnes med `?v=a`, `?v=b` eller `?v=c`. **Version D er ikke en del af A/B-testen**; den er det reviderede koncept, som rapportens afsnit 7.5 (forbedringsforslag), 9.5 og perspektivering peger på, og som kan bruges til en opfølgende test.
 
 **Idé:** Forsiden er én sætning, man kan læse og ændre: *"Jeg vil [se / sammenligne / hente] [mandaterne / stemmerne / valgte kandidater] i [område] ved [valg]."* Svaret opdateres lige under sætningen, og adressen ændrer sig, så et resultat kan deles som link. Den løser rapportens problemer P1–P7: opgavebaseret indgang, sorteringsvalg (størst først/A–Å), status og afsender altid synlige, at hente data er adskilt fra at se tal, og avancerede sider er ét klik væk.
 
@@ -77,6 +77,8 @@ Siden har `noindex`, så søgemaskiner ikke bør vise den, men et offentligt lin
 **Design (valg.dk-udtryk):** farver og skrifttype er aflæst fra det rigtige valg.dk's stylesheet, så prototypen genkendes: skifergrå #3F5061 (header, knapper), valg-gul #ECE5B7/#DCCE75 (valgfelter), side #F9F9F8, kanter #E4E4E4, grøn #00823E og rød #C33030 til status og demo-gul #FFF4AD til prototype-banneret. Skrifttype: Roboto (se `fonts/LICENSES.md`). Samme komponenter overalt: segmentvælgere, kort med bløde hjørner og partibogstaver i partiets farve.
 
 **Kortet:** bygger på det skematiske kort i `js/geo.js` (uændret, A/B bruger det også) og får i `js/app-d.js` valg.dk-farver og animationer med Web Animations API: boblerne vokser frem i en bølge, kortet glider ind på regionen for den valgte kommune, en ring markerer valget, en infoboks viser største parti og valgdeltagelse ved hover, og under live-optællingen popper nyoptalte kommuner frem. Uoptalte kommuner er hvide som på valg.dk. Animationerne slås fra ved "reduceret bevægelse".
+
+**Valgfelterne i sætningen:** knapper med chevron og tydelig kant (kontrast over 3:1, WCAG 2.2 1.4.11), der åbner et eget panel med søgning (ved mere end 10 valg), grupper og "Din kommune" øverst. De styres med tastatur (pil op/ned, Enter, Esc), og på mobil åbner panelet nedefra med 40 px høje felter. Ved skift får feltet en kort bekræftelse. "(eksempel)" står som et mærke ved siden af feltet.
 
 **Hent data:** tre synlige trin (hvilke tal, hvilket valg, hvilket format), forklaring af filen, forhåndsvisning og én knap.
 
