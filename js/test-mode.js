@@ -2,7 +2,10 @@
    Panelet er diskret: en lille fane ved højre kant, der åbnes ved klik (eller Alt+T) og lukker sig selv,
    når en opgave startes. Under en opgave viser fanen kun tiden.
    Alt gemmes lokalt i browseren (localStorage) – ingen data sendes nogen steder, og der indsamles ingen
-   personoplysninger (brug et anonymt deltager-id). */
+   personoplysninger (brug et anonymt deltager-id).
+   Sikring af data: hver gemt opgave lægges også i et arkiv (valgTestArkiv), som Nulstil ikke rører.
+   Efter hver SUS hentes automatisk en backup-fil (CSV). Nulstil og Slet arkiv kræver admin-PIN og
+   henter altid en backup først. PIN'en er en lås mod uheld, ikke en sikkerhedsløsning. */
 (function () {
   'use strict';
   const TASKS = [
@@ -11,7 +14,8 @@
     { id: 'T3', group: 'Borger / analytiker', text: 'Find ud af, hvilket parti der fik flest mandater i Ishøj, og om partiet fik flere eller færre mandater end ved valget i 2021.', answer: 'A (Socialdemokratiet) fik 9 mandater – ét færre end i 2021.' },
     { id: 'T4', group: 'Journalist / analytiker', text: 'Du skal bruge valgtal fra alle kommuner i Region Hovedstaden i et regneark. Hent dem.', answer: 'Hent data-siden: området "Vælg regioner" → Region Hovedstaden → henter filen (29 kommuner).' },
   ];
-  const KEY = 'valgTestResults', PKEY = 'valgTestPid';
+  const KEY = 'valgTestResults', PKEY = 'valgTestPid', ARK = 'valgTestArkiv', AKEY = 'valgTestAdmin';
+  const PIN_HASH = '37d057d8027a45d49f50160f3e4fbdd1145a5c6be433e4a2eaa64354c7c856f6'; // SHA-256 af 'valg-admin:' + PIN
   const params = new URLSearchParams(location.search);
   if (params.get('test') === '1') { try { sessionStorage.setItem('valgTest', '1'); } catch (e) {} }
   let enabled = false;
@@ -22,6 +26,27 @@
   const S = { phase: 'idle', first: '', sus: [], task: null, t0: 0, clicks: 0, routes: [], dead: 0, sorts: 0, exports: 0, searches: 0, secs: 0, outcome: '', seq: 0, note: '' };
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } };
   const save = (a) => { try { localStorage.setItem(KEY, JSON.stringify(a)); } catch (e) {} };
+  const loadArk = () => { try { return JSON.parse(localStorage.getItem(ARK) || '[]'); } catch (e) { return []; } };
+  const saveArk = (a) => { try { localStorage.setItem(ARK, JSON.stringify(a)); return true; } catch (e) { return false; } };
+  const rowId = (r) => r.id || [r.deltager, r.version, r.opgave, r.tidspunkt].join('|');
+  /* læg rækker i arkivet (kun tilføj, aldrig fjern) */
+  function archive(rows) {
+    const a = loadArk(), seen = new Set(a.map(rowId));
+    rows.forEach(r => { if (!seen.has(rowId(r))) { a.push(r); seen.add(rowId(r)); } });
+    if (!saveArk(a)) alert('Advarsel: resultatet kunne ikke gemmes i arkivet. Hent en CSV nu.');
+  }
+  /* gem en ny række både i arbejdslisten og i arkivet */
+  function addRow(row) {
+    row.id = row.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+    const r = load(); r.push(row); save(r); archive([row]);
+  }
+  const isAdmin = () => { try { return sessionStorage.getItem(AKEY) === '1'; } catch (e) { return false; } };
+  async function checkPin(pin) {
+    try {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('valg-admin:' + pin));
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('') === PIN_HASH;
+    } catch (e) { return false; }
+  }
   const getPid = () => { try { return localStorage.getItem(PKEY) || 'P01'; } catch (e) { return 'P01'; } };
   const setPid = (v) => { try { localStorage.setItem(PKEY, v); } catch (e) {} };
 
@@ -36,6 +61,8 @@
   };
   window.VTEST_ENABLED = enabled;
   if (!enabled) return;
+  archive(load()); // ældre resultater kommer også i arkivet
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 
   let panel, tab, content, timer;
   const $ = (s, r) => (r || panel).querySelector(s);
@@ -117,11 +144,29 @@
     }
 
     body.append(el('hr', { style: 'border:0;border-top:1px solid #D5DDE6;width:100%;margin:2px 0' }));
-    body.append(el('div', { class: 'fine' }, `${results.length} opgave(r) gemt lokalt.`));
+    const ark = loadArk();
+    body.append(el('div', { class: 'fine' }, `${results.length} opgave(r) i listen · ${ark.length} i arkivet. Gemmes i denne browser – brug ikke et privat vindue.`));
     body.append(el('div', { class: 'row' },
       el('button', { class: 'tb', onclick: () => download(results) }, '⬇ CSV'),
-      el('a', { class: 'tb', href: '#/testresultater', onclick: () => setMin(true) }, 'Resultater'),
-      el('button', { class: 'tb', onclick: () => { if (confirm('Slet alle gemte testresultater i denne browser?')) { save([]); render(); } } }, 'Nulstil')));
+      el('button', { class: 'tb', title: 'Alle resultater nogensinde gemt i denne browser', onclick: () => download(ark, 'arkiv') }, '⬇ Arkiv'),
+      el('a', { class: 'tb', href: '#/testresultater', onclick: () => setMin(true) }, 'Resultater')));
+    if (!isAdmin()) {
+      const pin = el('input', { id: 'apin', type: 'password', inputmode: 'numeric', autocomplete: 'off', placeholder: 'Admin-PIN', style: 'width:96px' });
+      const msg = el('span', { class: 'fine', role: 'status' });
+      const unlock = async () => { if (await checkPin(pin.value.trim())) { try { sessionStorage.setItem(AKEY, '1'); } catch (e) {} render(); } else { msg.textContent = 'Forkert PIN'; pin.value = ''; pin.focus(); } };
+      pin.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+      body.append(el('div', { class: 'row' }, pin, el('button', { class: 'tb', onclick: unlock }, 'Lås op'), msg));
+    } else {
+      body.append(el('div', { class: 'row' },
+        el('span', { class: 'fine', style: 'font-weight:600' }, 'Admin:'),
+        el('button', { class: 'tb', title: 'Tømmer listen. Arkivet bevares, og der hentes en backup først.', onclick: () => {
+          if (!confirm('Tøm listen med ' + results.length + ' resultater?\nDer hentes en backup først, og arkivet bevares.')) return;
+          archive(results); download(loadArk(), 'backup-foer-nulstil'); save([]); render(); } }, 'Nulstil liste'),
+        el('button', { class: 'tb', title: 'Sletter hele arkivet. Der hentes en backup først.', onclick: () => {
+          if (prompt('Skriv SLET for at slette hele arkivet (' + ark.length + ' rækker). Der hentes en backup først.') !== 'SLET') return;
+          download(ark, 'backup-foer-slet-arkiv'); saveArk([]); save([]); render(); } }, 'Slet arkiv'),
+        el('button', { class: 'tb', onclick: () => { try { sessionStorage.removeItem(AKEY); } catch (e) {} render(); } }, 'Lås')));
+    }
     updateMetrics();
   }
 
@@ -132,6 +177,7 @@
   }
 
   function startTask() {
+    try { sessionStorage.removeItem(AKEY); } catch (e) {} // admin låses, når deltageren overtager
     Object.assign(S, { first: '', phase: 'running', t0: Date.now(), clicks: 0, routes: [], dead: 0, sorts: 0, exports: 0, searches: 0, secs: 0, outcome: '', seq: 0, note: '' });
     clearInterval(timer); timer = setInterval(updateMetrics, 500);
     setMin(true); render();
@@ -143,24 +189,23 @@
   function saveTask() {
     const t = TASKS.find(x => x.id === S.task);
     const note = $('#note') ? $('#note').value : S.note;
-    const r = load();
-    r.push({ deltager: getPid(), version: VER, opgave: t.id, gruppe: t.group, udfald: S.outcome || '', seq: S.seq || '', sekunder: S.secs, klik: S.clicks, sider: S.routes.length, blindgyder: S.dead, sorteringer: S.sorts, eksporter: S.exports, soegninger: S.searches, note, foerste_klik: S.first, rutesti: S.routes.join(' > '), tidspunkt: new Date().toISOString() });
-    save(r);
+    addRow({ deltager: getPid(), version: VER, opgave: t.id, gruppe: t.group, udfald: S.outcome || '', seq: S.seq || '', sekunder: S.secs, klik: S.clicks, sider: S.routes.length, blindgyder: S.dead, sorteringer: S.sorts, eksporter: S.exports, soegninger: S.searches, note, foerste_klik: S.first, rutesti: S.routes.join(' > '), tidspunkt: new Date().toISOString() });
     S.phase = 'idle'; S.task = null; render();
   }
   function saveSus() {
     const sc = S.sus.reduce((t, v, i) => t + (i % 2 === 0 ? v - 1 : 5 - v), 0) * 2.5;
-    const r = load(); r.push({ deltager: getPid(), version: VER, opgave: 'SUS', sus_score: sc, tidspunkt: new Date().toISOString() }); save(r);
+    addRow({ deltager: getPid(), version: VER, opgave: 'SUS', sus_score: sc, tidspunkt: new Date().toISOString() });
+    download(loadArk(), 'backup-' + getPid()); // automatisk backup efter hver deltager
     S.phase = 'idle'; S.sus = []; render();
   }
-  function download(rows) {
+  function download(rows, tag) {
     if (!rows.length) { alert('Ingen resultater gemt endnu.'); return; }
-    const cols = ['deltager', 'version', 'opgave', 'gruppe', 'udfald', 'seq', 'sekunder', 'klik', 'sider', 'blindgyder', 'sorteringer', 'eksporter', 'soegninger', 'foerste_klik', 'sus_score', 'note', 'rutesti', 'tidspunkt'];
+    const cols = ['id', 'deltager', 'version', 'opgave', 'gruppe', 'udfald', 'seq', 'sekunder', 'klik', 'sider', 'blindgyder', 'sorteringer', 'eksporter', 'soegninger', 'foerste_klik', 'sus_score', 'note', 'rutesti', 'tidspunkt'];
     const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
     const csv = '﻿' + [cols.join(';')].concat(rows.map(r => cols.map(c => esc(r[c])).join(';'))).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = 'testresultater-' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.download = 'testresultater-' + (tag ? tag + '-' : '') + new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-') + '.csv';
     document.body.append(a); a.click(); a.remove();
   }
 

@@ -8,5 +8,5 @@
   } catch (e) {}
   var test = false; try { test = new URLSearchParams(location.search).has('test'); } catch (e) {}
   // standard = d (nyeste design). Testpanelet (?test=1) uden version giver b, så A/B-testen er uændret.
-  window.VVER = v === 'a' ? 'a' : v === 'b' ? 'b' : v === 'c' ? 'c' : v === 'd' ? 'd' : test ? 'b' : 'd';
+  window.VVER = v === 'a' ? 'a' : v === 'b' ? 'b' : v === 'c' ? 'c' : v === 'd' ? 'd' : 'b'; // standard = b i dette repo (version B til A/B-testen)
 })();
