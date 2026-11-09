@@ -19,7 +19,7 @@
 
   const VER = window.VVER === 'a' ? 'a' : window.VVER === 'c' ? 'c' : window.VVER === 'd' ? 'd' : 'b';
   const SUSQ = ['Jeg kunne godt tænke mig at bruge dette system ofte.', 'Jeg fandt systemet unødvendigt komplekst.', 'Jeg synes, systemet var let at bruge.', 'Jeg tror, jeg ville have brug for en teknisk persons hjælp for at kunne bruge systemet.', 'Jeg fandt de forskellige funktioner i systemet godt integreret.', 'Jeg synes, der var for meget inkonsistens i systemet.', 'Jeg forestiller mig, at de fleste hurtigt ville lære at bruge systemet.', 'Jeg fandt systemet meget besværligt at bruge.', 'Jeg følte mig meget sikker i at bruge systemet.', 'Jeg havde brug for at lære en masse, før jeg kunne komme i gang med systemet.'];
-  const S = { phase: 'idle', first: '', sus: [], task: null, t0: 0, clicks: 0, routes: [], dead: 0, sorts: 0, exports: 0, searches: 0, secs: 0, outcome: '', seq: 0, note: '' };
+  const S = { phase: 'idle', first: '', sus: [], task: null, t0: 0, clicks: 0, routes: [], dead: 0, sorts: 0, exports: 0, searches: 0, secs: 0, outcome: '', seq: 0, note: '', svar: '' };
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } };
   const save = (a) => { try { localStorage.setItem(KEY, JSON.stringify(a)); } catch (e) {} };
   const getPid = () => { try { return localStorage.getItem(PKEY) || 'P01'; } catch (e) { return 'P01'; } };
@@ -105,7 +105,9 @@
       const seq = el('div', { class: 'seq' });
       for (let i = 1; i <= 7; i++) seq.append(el('button', { class: 'tb' + (S.seq === i ? ' sel' : ''), onclick: () => { S.seq = i; render(); } }, String(i)));
       body.append(seq);
-      body.append(el('textarea', { id: 'note', rows: '3', placeholder: 'Noter (think aloud)' }, S.note));
+      body.append(el('label', { for: 'svar', class: 'fine', style: 'font-weight:600' }, 'Deltagerens svar'));
+      body.append(el('input', { id: 'svar', type: 'text', value: S.svar, placeholder: 'Fx «19 mandater, Konservative»', style: 'width:100%', oninput: (e) => { S.svar = e.target.value; } }));
+      body.append(el('textarea', { id: 'note', rows: '3', placeholder: 'Noter (think aloud)', oninput: (e) => { S.note = e.target.value; } }, S.note));
       body.append(el('button', { class: 'tb pri', onclick: saveTask }, 'Gem opgave'));
     }
 
@@ -132,7 +134,7 @@
   }
 
   function startTask() {
-    Object.assign(S, { first: '', phase: 'running', t0: Date.now(), clicks: 0, routes: [], dead: 0, sorts: 0, exports: 0, searches: 0, secs: 0, outcome: '', seq: 0, note: '' });
+    Object.assign(S, { first: '', phase: 'running', t0: Date.now(), clicks: 0, routes: [], dead: 0, sorts: 0, exports: 0, searches: 0, secs: 0, outcome: '', seq: 0, note: '', svar: '' });
     clearInterval(timer); timer = setInterval(updateMetrics, 500);
     setMin(true); render();
     if (location.hash === '#/' || location.hash === '' || location.hash === '#') { window.dispatchEvent(new HashChangeEvent('hashchange')); } else { location.hash = '#/'; }
@@ -144,7 +146,8 @@
     const t = TASKS.find(x => x.id === S.task);
     const note = $('#note') ? $('#note').value : S.note;
     const r = load();
-    r.push({ deltager: getPid(), version: VER, opgave: t.id, gruppe: t.group, udfald: S.outcome || '', seq: S.seq || '', sekunder: S.secs, klik: S.clicks, sider: S.routes.length, blindgyder: S.dead, sorteringer: S.sorts, eksporter: S.exports, soegninger: S.searches, note, foerste_klik: S.first, rutesti: S.routes.join(' > '), tidspunkt: new Date().toISOString() });
+    const svar = $('#svar') ? $('#svar').value : S.svar;
+    r.push({ deltager: getPid(), version: VER, opgave: t.id, gruppe: t.group, udfald: S.outcome || '', svar, seq: S.seq || '', sekunder: S.secs, klik: S.clicks, sider: S.routes.length, blindgyder: S.dead, sorteringer: S.sorts, eksporter: S.exports, soegninger: S.searches, note, foerste_klik: S.first, rutesti: S.routes.join(' > '), tidspunkt: new Date().toISOString() });
     save(r);
     S.phase = 'idle'; S.task = null; render();
   }
@@ -155,7 +158,7 @@
   }
   function download(rows) {
     if (!rows.length) { alert('Ingen resultater gemt endnu.'); return; }
-    const cols = ['deltager', 'version', 'opgave', 'gruppe', 'udfald', 'seq', 'sekunder', 'klik', 'sider', 'blindgyder', 'sorteringer', 'eksporter', 'soegninger', 'foerste_klik', 'sus_score', 'note', 'rutesti', 'tidspunkt'];
+    const cols = ['deltager', 'version', 'opgave', 'gruppe', 'udfald', 'svar', 'seq', 'sekunder', 'klik', 'sider', 'blindgyder', 'sorteringer', 'eksporter', 'soegninger', 'foerste_klik', 'sus_score', 'note', 'rutesti', 'tidspunkt'];
     const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
     const csv = '﻿' + [cols.join(';')].concat(rows.map(r => cols.map(c => esc(r[c])).join(';'))).join('\r\n');
     const a = document.createElement('a');
