@@ -457,11 +457,34 @@
           } }, h('span', { class: 'bl' }, `Hent ${ST.fmt === 'excel' ? 'Excel-filen' : 'CSV-filen'}`), h('span', { class: 'bs' }, `${fmtN(rows.length)} rækker · ${HEAD.length} kolonner`));
           left.append(h('div', { class: 'hent2' }, stepEl(1, 'Hvilke tal?', step1, sub1), stepEl(2, 'Hvilket valg?', step2), stepEl(3, 'Hvilket format?', step3),
             h('div', { class: 'hgo' }, btn, running ? h('p', { class: 'warn-note' }, 'Optællingen kører (simulation). Hent først filen, når den er afsluttet, så den ikke indeholder halve tal.') : h('p', { class: 'mapnote' }, 'Eksempeldata, ikke officielle tal.'))));
-          const prev = rows.slice(0, 8);
-          right.append(h('div', { class: 'preview' }, h('p', { class: 'pv-h' }, h('strong', {}, 'Sådan ser filen ud'), ` (de første ${prev.length} af ${fmtN(rows.length)} rækker)`),
-            h('div', { class: 'pv-scroll', tabindex: '0', role: 'region', 'aria-label': 'Forhåndsvisning af filen' }, h('table', { class: 'pv' }, h('thead', {}, h('tr', {}, HEAD.map(t => h('th', { scope: 'col' }, t)))),
-              h('tbody', {}, prev.map(r => h('tr', {}, r.map((v, i) => h('td', { class: typeof v === 'number' ? 'num' : '' }, typeof v === 'number' ? (i === 5 || i === 8 ? fmtP(v, 1).replace(' %', '') : fmtN(v)) : String(v)))))))),
-            h('p', { class: 'pv-n' }, 'Ændring er målt i forhold til forrige kommunalvalg; ændring i andel er i procentpoint.')));
+          /* forhåndsvisning: kun de kolonner, der skal læses, ingen vandret scroll, og et samlet overblik øverst */
+          const areas = [...new Set(rows.map(r => r[0]))];
+          const sumV = rows.reduce((t, r) => t + r[4], 0), sumM = rows.reduce((t, r) => t + r[6], 0);
+          const chg = v => v === '' || v == null ? '' : (v > 0 ? '+' : v < 0 ? '−' : '±') + fmtN(Math.abs(v));
+          const tot = h('div', { class: 'pv-tot' },
+            h('div', {}, h('b', {}, fmtN(rows.length)), h('span', {}, 'rækker i filen')),
+            h('div', {}, h('b', {}, fmtN(areas.length)), h('span', {}, areas.length === 1 ? 'område' : 'områder')),
+            h('div', {}, h('b', {}, fmtN(sumV)), h('span', {}, 'stemmer i alt')),
+            h('div', {}, h('b', {}, fmtN(sumM)), h('span', {}, 'mandater i alt')));
+          let table, cap;
+          if (areas.length === 1) {
+            cap = `Alle ${fmtN(rows.length)} partier i ${rows[0] ? rows[0][0] : ''}`;
+            table = h('table', { class: 'pv pv2 one' },
+              h('thead', {}, h('tr', {}, ['Parti', 'Stemmer', 'Andel', 'Mandater', 'Ændring'].map((t, i) => h('th', { scope: 'col', class: i ? 'num' : '' }, t)))),
+              h('tbody', {}, rows.map(r => h('tr', {}, h('td', { class: 'pv-p' }, letter(r[2], 'sm'), h('span', {}, r[3])), h('td', { class: 'num' }, fmtN(r[4])), h('td', { class: 'num' }, fmtP(r[5], 1)), h('td', { class: 'num' }, h('b', {}, String(r[6]))), h('td', { class: 'num pv-d' + (r[7] > 0 ? ' up' : r[7] < 0 ? ' dn' : '') }, chg(r[7]))))),
+              h('tfoot', {}, h('tr', {}, h('th', { scope: 'row' }, 'I alt'), h('td', { class: 'num' }, fmtN(sumV)), h('td', { class: 'num' }, '100 %'), h('td', { class: 'num' }, h('b', {}, String(sumM))), h('td', {}, ''))));
+          } else {
+            const per = areas.map(a => { const l = rows.filter(r => r[0] === a), b = l.slice().sort((x, y) => y[6] - x[6] || y[4] - x[4])[0]; return { a, n: l.length, v: l.reduce((t, r) => t + r[4], 0), m: l.reduce((t, r) => t + r[6], 0), big: b }; });
+            cap = `Overblik over de ${fmtN(areas.length)} områder – filen har én række pr. parti i hvert område`;
+            table = h('table', { class: 'pv pv2' },
+              h('thead', {}, h('tr', {}, ['Område', 'Største parti', 'Stemmer', 'Mandater'].map((t, i) => h('th', { scope: 'col', class: i > 1 ? 'num' : '' }, t)))),
+              h('tbody', {}, per.map(x => h('tr', {}, h('td', {}, x.a), h('td', { class: 'pv-p' }, x.big ? letter(x.big[2], 'sm') : null, h('span', {}, x.big ? `${x.big[6]} af ${x.m}` : '')), h('td', { class: 'num' }, fmtN(x.v)), h('td', { class: 'num' }, h('b', {}, String(x.m)))))),
+              h('tfoot', {}, h('tr', {}, h('th', { scope: 'row' }, 'I alt'), h('td', {}, ''), h('td', { class: 'num' }, fmtN(sumV)), h('td', { class: 'num' }, h('b', {}, String(sumM))))));
+          }
+          right.append(h('div', { class: 'preview' }, h('p', { class: 'pv-h' }, h('strong', {}, 'Sådan ser filen ud'), ' · ' + cap),
+            tot,
+            h('div', { class: 'pv-scroll pv-y', tabindex: '0', role: 'region', 'aria-label': 'Forhåndsvisning af filen' }, table),
+            h('p', { class: 'pv-n' }, `Filen har ${HEAD.length} kolonner: ${HEAD.join(', ')}. Ændring er målt i forhold til forrige kommunalvalg.`)));
         }
         answer.append(lede, grid, strip(A));
       }

@@ -87,7 +87,7 @@
         body.append(el('details', {}, el('summary', {}, 'Forventet svar'), el('div', { class: 'fine' }, t.answer)));
         body.append(el('button', { class: 'tb pri', onclick: startTask }, '▶ Start (panelet lukkes)'));
       } else body.append(el('div', { class: 'fine' }, 'Vælg en opgave, læs den højt, og tryk Start.'));
-      body.append(el('div', { class: 'row' }, el('span', { class: 'fine' }, 'Version:'), ['a', 'b'].map(v => el('button', { class: 'tb' + (VER === v ? ' sel' : ''), title: v === 'a' ? 'Nuværende struktur (valgtype først)' : 'Opgavebaseret struktur', onclick: () => { try { sessionStorage.setItem('valgVer', v); } catch (e) {} location.href = location.pathname + '?test=1&v=' + v + '#/'; } }, v.toUpperCase())),
+      body.append(el('div', { class: 'row' },
         el('button', { class: 'tb', onclick: () => { S.phase = 'sus'; S.sus = []; render(); } }, 'SUS')));
     } else if (S.phase === 'running') {
       const t = TASKS.find(x => x.id === S.task);

@@ -594,3 +594,20 @@ body[data-ver="d"] .slot:focus-visible{outline:2px solid transparent;box-shadow:
 .sheet .sp-q{font-size:16px}
 @media (max-width:900px){body[data-ver="d"] .sent{line-height:2.25}body[data-ver="d"] .slot{min-height:40px;padding:0 .45em 0 .55em}}
 @media (prefers-reduced-motion:reduce){.slotpop,.slotpop.sheet,.sp-back{animation:none}.slot .chev{transition:none}}
+
+/* v11: forhåndsvisning i Hent data uden vandret scroll, med samlet overblik */
+.pv-tot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 10px}
+.pv-tot div{background:#F3F5F9;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.pv-tot b{font:700 18px/1.1 var(--display);letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.pv-tot span{font-size:12px;color:var(--muted)}
+.pv-scroll.pv-y{overflow-x:hidden;overflow-y:auto;flex:0 1 auto;max-height:none}
+.pv.pv2 td,.pv.pv2 th{padding:5px 8px}
+.pv.pv2{table-layout:auto}
+.pv.pv2 th,.pv.pv2 td{white-space:normal}
+.pv.pv2 th.num,.pv.pv2 td.num{text-align:right;white-space:nowrap}
+.pv.pv2 .pv-p{display:flex;align-items:center;gap:8px}
+.pv.pv2 .pv-p span:last-child{min-width:0;overflow-wrap:anywhere}
+.pv.pv2 tfoot th,.pv.pv2 tfoot td{position:sticky;bottom:0;background:#F3F5F9;font-weight:700;border-top:1px solid var(--hair);text-align:left}
+.pv.pv2 tfoot td.num{text-align:right}
+.pv.pv2 .pv-d.up{color:#00823E}.pv.pv2 .pv-d.dn{color:#C33030}
+@media (max-width:600px){.pv-tot{grid-template-columns:repeat(2,minmax(0,1fr))}.pv.pv2.one th:nth-child(3),.pv.pv2.one td:nth-child(3){display:none}.pv.pv2{font-size:12.5px}.pv.pv2 td,.pv.pv2 th{padding:5px 4px}.pv.pv2 .pv-p{gap:6px}.pv-scroll.pv-y{max-height:70vh}}
