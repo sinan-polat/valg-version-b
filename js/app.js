@@ -958,7 +958,9 @@
     const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
     const med = a => { if (!a.length) return null; const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-    const VN = { a: 'Version A', b: 'Version B', c: 'Version C (gammel mærkning)', d: 'Version D (gammel mærkning)' };
+    const VN = { a: 'Version A', b: 'Version B', c: 'Version C' };
+    /* ældre svar (uden kolonnen design) blev mærket efter designet: b = opgavekort (version A), d = sætningen (version B) */
+    const arm = r => r.design ? (r.version || 'b') : ({ a: 'a', b: 'a', c: 'c', d: 'b' }[r.version || 'b'] || 'b');
     const VC = { a: COL[0], b: COL[1], c: COL[2], d: '#3F5061' };
     const METRICS = {
       tid: ['Median tid (sek.)', l => med(l.map(r => num(r.sekunder)).filter(x => x != null)), 0],
@@ -970,7 +972,7 @@
     const root = h('div', { class: 'page wrap' });
     const body = h('div');
     function draw() {
-      const all = stored.concat(extra).map(r => Object.assign({ version: 'b' }, r));
+      const all = stored.concat(extra).map(r => Object.assign({}, r, { version: arm(r) }));
       const vers = ['a', 'b', 'c', 'd'].filter(v => all.some(r => (r.version || 'b') === v));
       const tasks = [...new Set(all.filter(r => r.opgave && r.opgave !== 'SUS').map(r => r.opgave))].sort();
       const sus = all.filter(r => r.opgave === 'SUS');
