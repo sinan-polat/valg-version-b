@@ -18,6 +18,10 @@
   try { enabled = sessionStorage.getItem('valgTest') === '1'; } catch (e) { enabled = params.get('test') === '1'; }
 
   const VER = window.VVER === 'a' ? 'a' : window.VVER === 'c' ? 'c' : window.VVER === 'd' ? 'd' : 'b';
+  /* Testarm: svarene mærkes efter testsiden (A eller B), ikke efter det interne design (v=…).
+     Begge testsider ligger på samme domæne og deler derfor de samme gemte resultater. */
+  const ARM = /\/valg-version-a(\/|$)/.test(location.pathname) ? 'a' : /\/valg-version-b(\/|$)/.test(location.pathname) ? 'b' : VER;
+  if (VER === 'd') TASKS.push({ id: 'T5', group: 'Politiker i valgcaféen', text: 'Vis på storskærmen, hvem der er valgt ind i din kommune.', answer: 'Storskærm → vælg kommune → «Valgt i …» viser alle valgte i kommunen.' });
   const SUSQ = ['Jeg kunne godt tænke mig at bruge dette system ofte.', 'Jeg fandt systemet unødvendigt komplekst.', 'Jeg synes, systemet var let at bruge.', 'Jeg tror, jeg ville have brug for en teknisk persons hjælp for at kunne bruge systemet.', 'Jeg fandt de forskellige funktioner i systemet godt integreret.', 'Jeg synes, der var for meget inkonsistens i systemet.', 'Jeg forestiller mig, at de fleste hurtigt ville lære at bruge systemet.', 'Jeg fandt systemet meget besværligt at bruge.', 'Jeg følte mig meget sikker i at bruge systemet.', 'Jeg havde brug for at lære en masse, før jeg kunne komme i gang med systemet.'];
   const S = { phase: 'idle', first: '', sus: [], task: null, t0: 0, clicks: 0, routes: [], dead: 0, sorts: 0, exports: 0, searches: 0, secs: 0, outcome: '', seq: 0, note: '', svar: '' };
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } };
@@ -70,7 +74,7 @@
   function render() {
     const results = load();
     content.innerHTML = '';
-    const head = el('header', {}, el('span', {}, 'Testpanel · version ' + VER.toUpperCase()), el('button', { 'aria-label': 'Luk panel', title: 'Luk (Alt+T)', onclick: () => setMin(true) }, '×'));
+    const head = el('header', {}, el('span', {}, 'Testpanel · version ' + ARM.toUpperCase()), el('button', { 'aria-label': 'Luk panel', title: 'Luk (Alt+T)', onclick: () => setMin(true) }, '×'));
     const body = el('div', { class: 'body' });
     content.append(head, body);
 
@@ -112,7 +116,7 @@
     }
 
     if (S.phase === 'sus') {
-      body.append(el('div', { class: 'task' }, el('b', {}, 'SUS – version ' + VER.toUpperCase()), 'Læs hvert udsagn højt. 1 = helt uenig, 5 = helt enig.'));
+      body.append(el('div', { class: 'task' }, el('b', {}, 'SUS – version ' + ARM.toUpperCase()), 'Læs hvert udsagn højt. 1 = helt uenig, 5 = helt enig.'));
       SUSQ.forEach((q, i) => { body.append(el('div', { class: 'fine' }, (i + 1) + '. ' + q)); const r = el('div', { class: 'seq' }); for (let n = 1; n <= 5; n++) r.append(el('button', { class: 'tb' + (S.sus[i] === n ? ' sel' : ''), onclick: () => { S.sus[i] = n; render(); } }, String(n))); body.append(r); });
       const done = S.sus.filter(Boolean).length === 10;
       body.append(el('button', { class: 'tb pri', disabled: done ? null : 'true', onclick: saveSus }, done ? 'Gem SUS' : 'Besvar alle 10'), el('button', { class: 'tb', onclick: () => { S.phase = 'idle'; render(); } }, 'Annullér'));
@@ -123,7 +127,7 @@
     body.append(el('div', { class: 'row' },
       el('button', { class: 'tb', onclick: () => download(results) }, '⬇ CSV'),
       el('a', { class: 'tb', href: '#/testresultater', onclick: () => setMin(true) }, 'Resultater'),
-      el('button', { class: 'tb', onclick: () => { if (confirm('Slet alle gemte testresultater i denne browser?')) { save([]); render(); } } }, 'Nulstil')));
+      el('button', { class: 'tb', onclick: () => { if (confirm('Slet ALLE testresultater (både version A og B) i denne browser?\nHent en CSV først, hvis du vil gemme dem.')) { save([]); setPid('P01'); render(); } } }, 'Nulstil')));
     updateMetrics();
   }
 
@@ -147,18 +151,18 @@
     const note = $('#note') ? $('#note').value : S.note;
     const r = load();
     const svar = $('#svar') ? $('#svar').value : S.svar;
-    r.push({ deltager: getPid(), version: VER, opgave: t.id, gruppe: t.group, udfald: S.outcome || '', svar, seq: S.seq || '', sekunder: S.secs, klik: S.clicks, sider: S.routes.length, blindgyder: S.dead, sorteringer: S.sorts, eksporter: S.exports, soegninger: S.searches, note, foerste_klik: S.first, rutesti: S.routes.join(' > '), tidspunkt: new Date().toISOString() });
+    r.push({ deltager: getPid(), version: ARM, design: VER, opgave: t.id, gruppe: t.group, udfald: S.outcome || '', svar, seq: S.seq || '', sekunder: S.secs, klik: S.clicks, sider: S.routes.length, blindgyder: S.dead, sorteringer: S.sorts, eksporter: S.exports, soegninger: S.searches, note, foerste_klik: S.first, rutesti: S.routes.join(' > '), tidspunkt: new Date().toISOString() });
     save(r);
     S.phase = 'idle'; S.task = null; render();
   }
   function saveSus() {
     const sc = S.sus.reduce((t, v, i) => t + (i % 2 === 0 ? v - 1 : 5 - v), 0) * 2.5;
-    const r = load(); r.push({ deltager: getPid(), version: VER, opgave: 'SUS', sus_score: sc, tidspunkt: new Date().toISOString() }); save(r);
+    const r = load(); r.push({ deltager: getPid(), version: ARM, design: VER, opgave: 'SUS', sus_score: sc, tidspunkt: new Date().toISOString() }); save(r);
     S.phase = 'idle'; S.sus = []; render();
   }
   function download(rows) {
     if (!rows.length) { alert('Ingen resultater gemt endnu.'); return; }
-    const cols = ['deltager', 'version', 'opgave', 'gruppe', 'udfald', 'svar', 'seq', 'sekunder', 'klik', 'sider', 'blindgyder', 'sorteringer', 'eksporter', 'soegninger', 'foerste_klik', 'sus_score', 'note', 'rutesti', 'tidspunkt'];
+    const cols = ['deltager', 'version', 'design', 'opgave', 'gruppe', 'udfald', 'svar', 'seq', 'sekunder', 'klik', 'sider', 'blindgyder', 'sorteringer', 'eksporter', 'soegninger', 'foerste_klik', 'sus_score', 'note', 'rutesti', 'tidspunkt'];
     const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
     const csv = '﻿' + [cols.join(';')].concat(rows.map(r => cols.map(c => esc(r[c])).join(';'))).join('\r\n');
     const a = document.createElement('a');

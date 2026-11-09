@@ -958,7 +958,7 @@
     const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
     const med = a => { if (!a.length) return null; const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-    const VN = { a: 'Version A – nuværende struktur', b: 'Version B – opgavebaseret', c: 'Version C – mellemtrin', d: 'Sætningen (version D)' };
+    const VN = { a: 'Version A', b: 'Version B', c: 'Version C (gammel mærkning)', d: 'Version D (gammel mærkning)' };
     const VC = { a: COL[0], b: COL[1], c: COL[2], d: '#3F5061' };
     const METRICS = {
       tid: ['Median tid (sek.)', l => med(l.map(r => num(r.sekunder)).filter(x => x != null)), 0],
