@@ -654,7 +654,12 @@ body.fit.dfree{height:auto;overflow:visible}
 body.dfree main,body.dfree .dpage,body[data-ver="d"].dfree .dans,body.dfree .dgrid,body.dfree .hent2,body.dfree .preview{flex:none;overflow:visible;min-height:0}
 body.dfree .dleft,body.dfree .dright{display:block}
 .hhint{margin:2px 0 0;color:var(--muted);font-size:14px}
-.pv-box{border:1px solid var(--hair);border-radius:14px;overflow:hidden}
+.pv-box{border:1px solid var(--hair);border-radius:14px;overflow:auto;flex:1 1 0;min-height:120px}
+.pv-box thead th{position:sticky;top:0;z-index:1;background:var(--card,#fff)}
+.pv-box tfoot th,.pv-box tfoot td{position:sticky;bottom:0;background:var(--card,#fff)}
+.hrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.seg2.tal{margin-bottom:2px}
+.hstep .hhint{margin-top:6px}
 .pv-more td{color:var(--muted);font-size:13px;text-align:left;padding:8px 12px}
 .pv-empty{border:1.5px dashed var(--hair2,#C9D1DA);border-radius:14px;padding:28px 24px;color:var(--muted);min-height:180px;display:flex;align-items:center;font-size:15px;line-height:1.5}
 .reveal{animation:hreveal .28s ease-out both}
@@ -665,3 +670,48 @@ body.dfree .dleft,body.dfree .dright{display:block}
 @media (max-width:900px){.dtitle .dfind-wrap{flex:none;width:100%;max-width:none}}
 .sent-row .sent-wrap{flex:1 1 100%;min-width:0}
 .mapquick .mq[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.hent2 .vsteps .seg2 button,.hent2 .seg2.tal button{font-size:13.5px;padding:5px 10px;min-height:32px}
+.hent2 .hrow .subpick{margin:0}
+.hent2 .hrow .hhint{margin:0}
+.hent2 .hstep h3{margin-bottom:6px}
+.hent2 .hbtn{padding:8px 18px;min-height:0}
+.hent2 .hbtn .bs{font-size:12px}
+.hent2{gap:clamp(8px,1.4vh,14px)}
+@media (max-height:760px) and (min-width:901px){.pv-tot>div{padding:6px 10px}.pv-tot b{font-size:17px}.pv-n{font-size:12px;margin-top:4px}.pv-h{margin-bottom:6px}}
+.pv-box table{margin:0}
+.pv-box tfoot th,.pv-box tfoot td{background:#F3F5F7;box-shadow:0 -1px 0 var(--hair)}
+/* Runde 7 (17.11): roligere sætning, ét valgfelt, enklere sammenligning */
+/* felterne i sætningen: understregning i stedet for gule bokse – så tallene og kortet træder frem */
+body[data-ver="d"] .slot{background:transparent;border:0;border-radius:4px;box-shadow:inset 0 -2px 0 var(--slate,#3F5061);padding:0 .12em .02em .12em;margin:0 .1em;min-height:0;font-weight:600;color:var(--ink)}
+body[data-ver="d"] .slot:hover{background:rgba(63,80,97,.07)}
+body[data-ver="d"] .slot[aria-expanded="true"]{background:rgba(63,80,97,.10)}
+body[data-ver="d"] .slot .chev{width:.6em;opacity:.55}
+@media (max-width:900px){body[data-ver="d"] .slot{min-height:40px;padding:0 .2em}}
+.sent .sfix{font-weight:600}
+/* valgpanelet: typer til venstre, år til højre */
+.slotpop.vpop{width:min(460px,calc(100vw - 24px));max-height:none;padding:10px}
+.vp-cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:10px}
+.vp-cols>div{min-width:0}
+.vp-h{margin:0 0 4px 10px;font-size:12px;color:var(--muted);font-weight:600}
+.vp-t,.vp-y{list-style:none;margin:0;padding:0;outline:none}
+.vp-t .sp-o::after,.vp-y .sp-o::after{display:none}
+.vp-t .sp-o.act{background:var(--ink);color:#fff}
+.vp-t:focus-visible,.vp-y:focus-visible{outline:2px solid var(--slate);outline-offset:2px;border-radius:8px}
+.vp-n{font-size:12px;opacity:.6}
+.vp-y .sp-o>span{display:flex;flex-direction:column;gap:1px}
+.vp-y .sp-o small{font-size:12.5px;color:var(--muted)}
+.vp-y .sp-o.cur b::after{content:" · valgt";font-weight:400;font-size:12.5px;color:var(--muted)}
+.vp-y{border-left:1px solid var(--hair);padding-left:10px}
+.sheet.vpop .vp-cols{grid-template-columns:1fr 1fr}
+/* sammenligning: ét tal pr. parti – forskellen. Begge tal vises, når man peger på (eller fokuserer) rækken */
+body[data-ver="d"] .ballot.cmp .row{grid-template-columns:34px minmax(0,1fr) 96px}
+.ballot.cmp .row:focus-visible{outline:2px solid var(--slate);outline-offset:2px;border-radius:6px}
+.ballot.cmp .val2 strong{font-size:17px}
+.ballot.cmp .val2 strong.up{color:#00823E}.ballot.cmp .val2 strong.dn{color:#C33030}
+.ballot.cmp .peek{visibility:hidden}
+.ballot.cmp .row:hover .peek,.ballot.cmp .row:focus .peek{visibility:visible}
+@media (hover:none){.ballot.cmp .peek{visibility:visible}}
+.cmp .bar.b i{background-image:none;opacity:.38}
+.cmp-key .k.b::before{background:var(--ink);opacity:.38;outline:0}
+@media (max-width:520px){body[data-ver="d"] .ballot.cmp .row{grid-template-columns:26px minmax(0,1fr) 80px}}
+.pv-box{flex:0 1 auto;min-height:0}

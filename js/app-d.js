@@ -191,6 +191,58 @@
       if (/\(eksempel\)$/.test(txt)) wrap.push(h('span', { class: 'slot-note' }, 'eksempeldata'));
       return wrap.length > 1 ? h('span', { class: 'slotw' }, wrap) : btn;
     }
+    /* valgfeltet: ét felt («Folketingsvalg 2026»), der åbner et panel med typerne til venstre og årene til højre.
+       Man peger på en type og klikker på et år – 2 klik i stedet for 4 (feedback 17.11). */
+    function valgSlot(label, cur, on, key) {
+      const chev = '<svg class="chev" viewBox="0 0 12 8" aria-hidden="true" focusable="false"><path d="M1.5 1.5 6 6l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      const btn = h('button', { type: 'button', class: 'slot', 'data-k': key, 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-label': `${label}: ${ELNAME[cur]}. Tryk for at ændre` }, h('span', { class: 'sl-t' }, ELNAME[cur]));
+      btn.insertAdjacentHTML('beforeend', chev);
+      const open = () => {
+        if (popOpen && popOpen.btn === btn) { closePop(true); return; }
+        closePop(false);
+        const mobile = matchMedia('(max-width:600px)').matches;
+        let tSel = typeOf(cur);
+        const tl = h('ul', { class: 'vp-t', role: 'listbox', 'aria-label': 'Type valg', tabindex: '0' });
+        const yl = h('ul', { class: 'vp-y', role: 'listbox', 'aria-label': 'År', tabindex: '0' });
+        const yLab = v => h('span', {}, h('b', {}, String(yr(v))), h('small', {}, ELS[v].short ? ELS[v].short : dayDate(v).replace(/ \d{4}$/, '')));
+        const paintY = () => {
+          yl.innerHTML = ''; yl.setAttribute('aria-label', TYPES[tSel].name + ': år');
+          elsOfType(tSel).forEach((v, i) => { const li = h('li', { role: 'option', id: `vp-${key}-y${i}`, class: 'sp-o' + (v === cur ? ' cur' : ''), 'data-v': v, 'aria-selected': String(v === cur) }, yLab(v)); li.addEventListener('click', () => choose(v)); yl.append(li); });
+        };
+        const paintT = () => { [...tl.children].forEach(li => { const on2 = li.dataset.t === tSel; li.classList.toggle('act', on2); li.setAttribute('aria-selected', String(on2)); }); tl.setAttribute('aria-activedescendant', `vp-${key}-t${TYPE_ORDER.indexOf(tSel)}`); paintY(); };
+        TYPE_ORDER.forEach((t, i) => { const li = h('li', { role: 'option', id: `vp-${key}-t${i}`, class: 'sp-o', 'data-t': t }, TYPES[t].name, h('span', { class: 'vp-n', 'aria-hidden': 'true' }, String(elsOfType(t).length))); li.addEventListener('mouseenter', () => { if (tSel !== t) { tSel = t; paintT(); } }); li.addEventListener('click', () => { tSel = t; paintT(); yl.focus(); setY(0); }); tl.append(li); });
+        let ya = 0;
+        const setY = i => { const os = [...yl.children]; if (!os.length) return; ya = Math.max(0, Math.min(os.length - 1, i)); os.forEach((o, j) => o.classList.toggle('act', j === ya)); yl.setAttribute('aria-activedescendant', os[ya].id); };
+        const choose = v => { closePop(false); if (v !== cur) on(v); else btn.focus(); };
+        tl.addEventListener('keydown', e => { const i = TYPE_ORDER.indexOf(tSel);
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); tSel = TYPE_ORDER[Math.max(0, Math.min(TYPE_ORDER.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]; paintT(); }
+          else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); yl.focus(); setY(Math.max(0, elsOfType(tSel).indexOf(cur))); }
+          else if (e.key === 'Escape') { e.preventDefault(); closePop(true); } });
+        yl.addEventListener('keydown', e => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setY(ya + (e.key === 'ArrowDown' ? 1 : -1)); }
+          else if (e.key === 'ArrowLeft') { e.preventDefault(); tl.focus(); }
+          else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const o = yl.children[ya]; if (o) choose(o.dataset.v); }
+          else if (e.key === 'Escape') { e.preventDefault(); closePop(true); }
+          else if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); tl.focus(); } });
+        tl.addEventListener('keydown', e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); yl.focus(); setY(Math.max(0, elsOfType(tSel).indexOf(cur))); } });
+        const pop = h('div', { class: 'slotpop vpop' + (mobile ? ' sheet' : ''), role: 'dialog', 'aria-label': label },
+          mobile ? h('div', { class: 'sp-head' }, h('strong', {}, label), h('button', { type: 'button', class: 'sp-x', 'aria-label': 'Luk', onclick: () => closePop(true) }, '×')) : null,
+          h('div', { class: 'vp-cols' }, h('div', {}, h('p', { class: 'vp-h' }, 'Type'), tl), h('div', {}, h('p', { class: 'vp-h' }, 'År'), yl)));
+        let bd = null;
+        if (mobile) { bd = h('div', { class: 'sp-back' }); bd.addEventListener('click', () => closePop(true)); document.body.append(bd); }
+        document.body.append(pop); paintT();
+        if (!mobile) { const r = btn.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight; let x = Math.min(r.left, innerWidth - pw - 12), y = r.bottom + 6; if (y + ph > innerHeight - 8 && r.top - ph - 6 > 8) y = r.top - ph - 6; pop.style.left = Math.max(8, x) + 'px'; pop.style.top = y + 'px'; }
+        const onDoc = e => { if (!pop.contains(e.target) && !btn.contains(e.target)) closePop(false); };
+        const onWin = e => { if (e && e.type === 'scroll' && pop.contains(e.target)) return; closePop(false); };
+        document.addEventListener('mousedown', onDoc, true); window.addEventListener('resize', onWin); window.addEventListener('scroll', onWin, true);
+        popOpen = { pop, bd, btn, onDoc, onWin };
+        btn.setAttribute('aria-expanded', 'true');
+        yl.focus(); setY(Math.max(0, elsOfType(tSel).indexOf(cur)));
+      };
+      btn.addEventListener('click', () => open());
+      btn.addEventListener('keydown', e => { if (e.key === 'ArrowDown') { e.preventDefault(); open(); } });
+      return btn;
+    }
     const areaGroups = (valg, doing) => [{ items: [['land', 'hele landet']].concat(doing === 'hente' ? [['alle-reg', 'alle regioner'], ['alle-kom', 'alle 98 kommuner']] : []) },
         { label: doing === 'hente' ? 'Kommunerne i en region' : 'Regioner', items: REG.map(r => [r.id, r.name]) }]
       .concat(valg === 'fv' && doing === 'se' ? [{ label: 'Storkredse (folketingsvalg)', items: FV.storkredse.map(x => [x.id, x.name]) }] : [], [{ label: 'Kommuner', items: komSorted.map(k => [k.id, k.name]) }]);
@@ -225,12 +277,11 @@
       const all = Object.keys(ps).map(p => ({ p, name: PN(p), color: D.parties[p].color, a: val(A, p), b: val(B, p), m: Math.max(val(A, p), val(B, p)) }));
       const list = sortMode === 'alpha' ? all.sort((x, y) => x.p.localeCompare(y.p, 'da')) : all.sort((x, y) => y.m - x.m);
       const max = Math.max(1, ...list.map(r => r.m));
-      return { list, el: h('ol', { class: 'ballot cmp', 'aria-label': 'Sammenligning pr. parti' }, list.map(r => h('li', { class: 'row' }, letter(r.p),
+      return { list, el: h('ol', { class: 'ballot cmp', 'aria-label': 'Sammenligning pr. parti' }, list.map(r => h('li', { class: 'row', tabindex: '0', 'aria-label': `${r.name}: ${la} ${show(r.a)}, ${lb} ${show(r.b)}, forskel ${diff(r.a - r.b)}` }, letter(r.p),
         h('span', { class: 'mid' }, h('span', { class: 'pn' }, r.name),
           h('span', { class: 'bar a' }, h('i', { style: `width:${Math.max(1, r.a / max * 100)}%;background-color:${r.color}` })),
           h('span', { class: 'bar b' }, h('i', { style: `width:${Math.max(1, r.b / max * 100)}%;background-color:${r.color}` }))),
-        h('span', { class: 'val2' }, h('strong', {}, show(r.a)), h('small', {}, show(r.b))),
-        h('span', { class: 'dl' + (abs && r.a !== r.b ? (r.a > r.b ? ' up' : ' dn') : ''), 'aria-label': 'Forskel ' + diff(r.a - r.b) }, diff(r.a - r.b))))), abs };
+        h('span', { class: 'val2', 'aria-hidden': 'true' }, h('strong', { class: Math.abs(r.a - r.b) < (abs ? 1 : 0.05) ? '' : r.a > r.b ? 'up' : 'dn' }, diff(r.a - r.b)), h('small', { class: 'peek' }, `${show(r.a)} · ${show(r.b)}`))))), abs };
     }
 
     /* ---------- svar-tekst («lede») ---------- */
@@ -507,11 +558,7 @@
         /* alle valg, grupperet efter type – feltet får søgning, fordi der er mere end ti */
         /* valget er to felter i sætningen: først typen (5 valg), så året (højst 7) – Hicks lov frem for én liste med 24 valg */
         const yLabel = v => String(yr(v)) + (ELS[v].short ? ' · ' + ELS[v].short : '');
-        const valgSlots = (lab, key, cur, set) => {
-          const t = typeOf(cur);
-          return [slot(lab + ': type', [{ items: TYPE_ORDER.map(tt => [tt, TYPES[tt].name]) }], t, tt => set(tt === t ? cur : elsOfType(tt)[0]), key === 'valg' ? 'vtype' : 'vtype2'), ' ',
-            slot(lab + ': år', [{ label: TYPES[t].name, items: elsOfType(t).map(v => [v, yLabel(v)]) }], cur, set, key)];
-        };
+        const valgSlots = (lab, key, cur, set) => [valgSlot(lab, cur, set, key)];
         const hvItems = isFA(ST.valg) ? [['stem', 'resultatet']]
           : (hasSeatsHere(ST.valg, ST.omr) ? [['mand', 'mandaterne']] : []).concat(sk[ST.omr] ? [] : [['stem', 'stemmerne']], HAS_CAND(ST.valg) ? [['valgte', 'de valgte']] : []);
         const parts = [];
@@ -519,9 +566,14 @@
         if (ST.do === 'se') parts.push(slot('Hvad vil du se?', [{ items: hvItems }], ST.hv, v => update('hv', { hv: v }), 'hv'), ' i ', slot('Område', areaGroups(ST.valg, 'se'), ST.omr, v => update('omr', { omr: v }), 'omr'));
         else if (ST.do === 'sammenlign') parts.push(slot('Første område', areaGroups(ST.valg, 'sammenlign'), ST.omr, v => update('omr', { omr: v }), 'omr'), ' ved ', ...valgSlots('Første valg', 'valg', ST.valg, v => update('valg', { valg: v })),
           ' med ', slot('Andet område', areaGroups(ST.valg, 'sammenlign'), ST.omr2, v => update('omr2', { omr2: v }), 'omr2'), ' ved ', ...valgSlots('Andet valg', 'valg2', ST.valg2, v => update('valg2', { valg2: v })));
-        else parts.push('tallene for ', slot('Område', areaGroups(ST.valg, 'hente'), ST.omr, v => update('omr', { omr: v }), 'omr'));
-        if (ST.do !== 'sammenlign') parts.push(' ved ', ...valgSlots('Valg', 'valg', ST.valg, v => update('valg', { valg: v })));
-        if (ST.do === 'hente') parts.push(' som ', slot('Filformat', [{ items: [['excel', 'Excel-fil'], ['csv', 'CSV-fil']] }], ST.fmt, v => update('fmt', { fmt: v }), 'fmt'));
+        else {
+          /* kun ét sted at vælge: trinene herunder. Sætningen fortæller roligt, hvad man er ved at hente. */
+          const fx = t => h('strong', { class: 'sfix' }, t);
+          if (hentStage === 0) parts.push('tal fra et valg');
+          else if (hentStage === 1) parts.push('tal fra ', fx(ELNAME[ST.valg]));
+          else parts.push('tallene for ', fx(areaLabel(ST.omr)), ' ved ', fx(ELNAME[ST.valg]), ' som ', fx(ST.fmt === 'excel' ? 'Excel-fil' : 'CSV-fil'));
+        }
+        if (ST.do === 'se') parts.push(' ved ', ...valgSlots('Valg', 'valg', ST.valg, v => update('valg', { valg: v })));
         parts.push(h('span', { style: 'white-space:nowrap' }, parts.pop(), '.')); /* punktummet følger sidste felt og står aldrig alene på en linje */
         sentenceBox.append(h('p', { class: 'sent' }, parts));
         fitSentence();
@@ -555,7 +607,6 @@
 
       function drawAnswer() {
         answer.innerHTML = '';
-        document.body.classList.toggle('dfree', ST.do === 'hente');
         const A = ST.do === 'hente' ? { rows: [], pending: false, type: 'hente' } : resultOf(ST.omr, ST.valg);
         const lede = h('p', { class: 'lede', id: 'dh-lede' });
         const setLede = t => { const m = String(t).match(/^(.+?[.!?])(\s+[\s\S]*)?$/); lede.innerHTML = ''; if (m && m[2]) lede.append(h('span', {}, m[1]), h('span', { class: 'more' }, m[2])); else lede.textContent = t; };
@@ -596,7 +647,7 @@
             const bothM = A.hasM && B.hasM && !isFA(ST.valg), metric = bothM ? ST.cmp : 'stem', c = compareRows(A, B, metric, ST.sort, la, lb);
             setLede(bothM ? ledeCmp(A, B, pa, pb, sameArea ? areaIn(ST.omr) : null) : ledeCmpVotes(A, B, pa, pb));
             const mseg = bothM ? h('div', { class: 'seg2', role: 'group', 'aria-label': 'Sammenlign på' }, [['stem', 'Stemmer'], ['mand', 'Mandater']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(ST.cmp === v), onclick: () => { ST.cmp = v; drawAnswer(); } }, t))) : null;
-            left.append(h('div', { class: 'ctl' }, mseg, sortSeg()), h('div', { class: 'cmp-key' }, h('span', { class: 'k a' }, la + ' (øverst)'), h('span', { class: 'k b' }, lb), h('span', { class: 'kn' }, metric === 'stem' ? 'Andel af stemmerne' : c.abs ? 'Antal mandater' : 'Andel af mandaterne, så områder af forskellig størrelse kan sammenlignes')), c.el);
+            left.append(h('div', { class: 'ctl' }, mseg, sortSeg()), h('div', { class: 'cmp-key' }, h('span', { class: 'k a' }, la + ' (øverst)'), h('span', { class: 'k b' }, lb), h('span', { class: 'kn' }, (metric === 'stem' ? 'Forskel i stemmeandel' : c.abs ? 'Forskel i mandater' : 'Forskel i andel af mandaterne') + ' · peg på en række for at se begge tal')), c.el);
           }
           const host = h('div', { class: 'dview' }); paintMap(host); right.append(host);
         } else {
@@ -606,17 +657,18 @@
           const stage = hentStage; /* 0: kun valget · 1: + hvilke tal · 2: + format, knap og forhåndsvisning (Kristian: «meget tal på én gang») */
           setLede(stage === 0 ? 'Vælg først, hvilket valg du vil hente tal fra.' : stage === 1 ? `Vælg nu, hvilke tal fra ${lowerFirst(ELNAME[ST.valg])} du vil have.` : `Du får én fil med ${fmtN(rows.length)} rækker: ${desc}.`);
           const refocus = sel => requestAnimationFrame(() => { const f = answer.querySelector(sel); if (f) f.focus(); });
-          const opt = (k, t, sub, on, pressed) => h('button', { type: 'button', class: 'opt', 'data-opt': k, 'aria-pressed': String(pressed), onclick: () => { if (!['excel', 'csv'].includes(k)) hentStage = 2; on(); refocus(`[data-opt="${k}"]`); } }, h('strong', {}, t), h('small', {}, sub));
+          const opt = (k, t, sub, on, pressed) => sub === '' ? h('button', { type: 'button', 'data-opt': k, 'aria-pressed': String(pressed), onclick: () => { if (!['excel', 'csv'].includes(k)) hentStage = 2; on(); refocus(`[data-opt="${k}"]`); } }, t) : h('button', { type: 'button', class: 'opt', 'data-opt': k, 'aria-pressed': String(pressed), onclick: () => { if (!['excel', 'csv'].includes(k)) hentStage = 2; on(); refocus(`[data-opt="${k}"]`); } }, h('strong', {}, t), h('small', {}, sub));
           const firstReg = REG[REG.findIndex(r => r.id === 'region-hovedstaden')] || REG[0];
-          const step1 = h('div', { class: 'opts', role: 'group', 'aria-label': 'Hvilke tal?' },
-            opt('land', 'Hele landet', 'Ét samlet tal pr. parti', () => update('omr', { omr: 'land' }), stage > 1 && scope === 'land'),
-            opt('reg', 'De 5 regioner', 'Ét tal pr. parti pr. region', () => update('omr', { omr: 'alle-reg' }), stage > 1 && scope === 'reg'),
-            opt('kom', 'Alle 98 kommuner', 'Til statistik på tværs af landet', () => update('omr', { omr: 'alle-kom' }), stage > 1 && scope === 'kom'),
-            opt('regkom', 'Kommunerne i en region', 'Fx de 29 i Region Hovedstaden', () => update('omr', { omr: scope === 'regkom' ? ids : firstReg.id }), stage > 1 && scope === 'regkom'),
-            opt('en', 'Én kommune', 'Kun tallene for din kommune', () => update('omr', { omr: scope === 'en' ? ids : (loadFoc() || 'horsholm') }), stage > 1 && scope === 'en'));
+          const TAL = { land: 'Ét samlet tal pr. parti.', reg: 'Ét tal pr. parti pr. region.', kom: 'Ét tal pr. parti pr. kommune – til statistik.', regkom: 'Ét tal pr. parti pr. kommune i regionen.', en: 'Kun tallene for kommunen.' };
+          const step1 = h('div', { class: 'seg2 wrap tal', role: 'group', 'aria-label': 'Hvilke tal?' },
+            opt('land', 'Hele landet', '', () => update('omr', { omr: 'land' }), stage > 1 && scope === 'land'),
+            opt('reg', '5 regioner', '', () => update('omr', { omr: 'alle-reg' }), stage > 1 && scope === 'reg'),
+            opt('kom', '98 kommuner', '', () => update('omr', { omr: 'alle-kom' }), stage > 1 && scope === 'kom'),
+            opt('regkom', 'Kommunerne i en region', '', () => update('omr', { omr: scope === 'regkom' ? ids : firstReg.id }), stage > 1 && scope === 'regkom'),
+            opt('en', 'Én kommune', '', () => update('omr', { omr: scope === 'en' ? ids : (loadFoc() || 'horsholm') }), stage > 1 && scope === 'en'));
           let sub1 = null;
           if (stage > 1 && (scope === 'regkom' || scope === 'en')) {
-            const items = scope === 'regkom' ? REG.map(r => [r.id, `${r.name} (${H.getArea(r.id).kommuner.length} kommuner)`]) : komSorted.map(k => [k.id, k.name]);
+            const items = scope === 'regkom' ? REG.map(r => [r.id, r.name]) : komSorted.map(k => [k.id, k.name]);
             const sel = h('select', { class: 'dsel', id: 'hsel' }, items.map(([v, t]) => { const o = h('option', { value: v }, t); if (v === ids) o.selected = true; return o; }));
             sel.addEventListener('change', () => { update('omr', { omr: sel.value }); refocus('#hsel'); });
             sub1 = h('div', { class: 'subpick' }, h('label', { for: 'hsel' }, scope === 'regkom' ? 'Region' : 'Kommune'), sel);
@@ -625,18 +677,19 @@
           const step2 = h('div', { class: 'vsteps' },
             h('div', { class: 'seg2 wrap', role: 'group', 'aria-label': 'Type valg' }, TYPE_ORDER.map(t => h('button', { type: 'button', 'data-opt': 't-' + t, 'aria-pressed': String(tNow === t), onclick: () => { update('valg', { valg: tNow === t ? ST.valg : elsOfType(t)[0] }); refocus(`[data-opt="t-${t}"]`); } }, TYPES[t].name))),
             h('div', { class: 'seg2 wrap', role: 'group', 'aria-label': TYPES[tNow].name + ': hvilket år?' }, elsOfType(tNow).map(v => h('button', { type: 'button', 'data-opt': 'v-' + v, 'aria-pressed': String(stage > 0 && ST.valg === v), 'aria-label': ELNAME[v], onclick: () => { hentStage = Math.max(hentStage, 1); update('valg', { valg: v }); refocus(`[data-opt="v-${v}"]`); } }, String(yr(v))))));
-          const step3 = h('div', { class: 'opts two', role: 'group', 'aria-label': 'Hvilket format?' },
-            opt('excel', 'Excel', 'Åbner direkte i dansk Excel (semikolon og decimalkomma)', () => update('fmt', { fmt: 'excel' }), ST.fmt === 'excel'),
-            opt('csv', 'CSV', 'Komma og decimalpunktum – til R, Python eller SPSS', () => update('fmt', { fmt: 'csv' }), ST.fmt === 'csv'));
+          const step3 = h('div', { class: 'seg2', role: 'group', 'aria-label': 'Hvilket format?' },
+            opt('excel', 'Excel', '', () => update('fmt', { fmt: 'excel' }), ST.fmt === 'excel'),
+            opt('csv', 'CSV', '', () => update('fmt', { fmt: 'csv' }), ST.fmt === 'csv'));
+          const fmtHint = ST.fmt === 'excel' ? 'Åbner direkte i dansk Excel. Eksempeldata.' : 'Til R, Python eller SPSS. Eksempeldata.';
           const stepEl = (n, t, ...kids) => h('section', { class: 'hstep' }, h('h3', {}, h('span', { class: 'hn', 'aria-hidden': 'true' }, String(n)), t), ...kids);
           const btn = h('button', { class: 'dbtn hbtn', type: 'button', disabled: running ? '' : null, onclick: () => {
             const text = ST.fmt === 'excel' ? csv(HEAD, rows) : csv(HEAD, rows, { sep: ',', dec: '.' });
             download(`valg-${ids}-${ST.valg}.csv`, text); say.textContent = 'Filen er hentet.'; btn.classList.add('done'); btn.querySelector('.bl').textContent = 'Filen er hentet'; log('hent', ids + ' ' + ST.valg);
           } }, h('span', { class: 'bl' }, `Hent ${ST.fmt === 'excel' ? 'Excel-filen' : 'CSV-filen'}`), h('span', { class: 'bs' }, `${fmtN(rows.length)} rækker · ${HEAD.length} kolonner`));
           left.append(h('div', { class: 'hent2' }, stepEl(1, 'Hvilket valg?', step2, stage === 0 ? h('p', { class: 'hhint' }, 'Vælg type og derefter år.') : null),
-            stage > 0 ? stepEl(2, 'Hvilke tal?', step1, sub1) : null,
-            stage > 1 ? stepEl(3, 'Hvilket format?', step3) : null,
-            stage > 1 ? h('div', { class: 'hgo' }, btn, running ? h('p', { class: 'warn-note' }, 'Optællingen kører (simulation). Hent først filen, når den er afsluttet, så den ikke indeholder halve tal.') : h('p', { class: 'mapnote' }, 'Eksempeldata, ikke officielle tal.')) : null));
+            stage > 0 ? stepEl(2, 'Hvilke tal?', step1, h('div', { class: 'hrow' }, sub1, h('p', { class: 'hhint' }, stage > 1 ? TAL[scope] : 'Vælg, hvor detaljeret filen skal være.'))) : null,
+            stage > 1 ? stepEl(3, 'Hvilket format?', h('div', { class: 'hrow' }, step3, btn, h('span', { class: 'hhint' }, fmtHint))) : null,
+            stage > 1 && running ? h('p', { class: 'warn-note' }, 'Optællingen kører (simulation). Hent først filen, når den er afsluttet, så den ikke indeholder halve tal.') : null));
           /* det nye trin glider stille frem, så man ser, hvad der kom til */
           if (stage > shownStage && !RM) { const st = left.querySelectorAll('.hstep, .hgo'); [...st].slice(stage === 1 ? 1 : 2).forEach(x => x.classList.add('reveal')); }
           shownStage = stage;
@@ -663,7 +716,7 @@
               h('tfoot', {}, h('tr', {}, h('th', { scope: 'row' }, 'I alt'), h('td', { class: 'num' }, fmtN(sumV)), h('td', { class: 'num' }, '100 %'), h('td', { class: 'num' }, h('b', {}, noM ? '–' : String(sumM))), h('td', {}, ''))));
           } else {
             const perAll = areas.map(a => { const l = rows.filter(r => r[0] === a), b = l.slice().sort((x, y) => (+y[6] || 0) - (+x[6] || 0) || y[4] - x[4])[0]; return { a, n: l.length, v: l.reduce((t, r) => t + r[4], 0), m: l.reduce((t, r) => t + (+r[6] || 0), 0), big: b }; });
-            const per = perAll.slice(0, 8), rest = perAll.length - per.length;
+            const per = perAll, rest = 0;
             cap = `Overblik over de ${fmtN(areas.length)} områder – filen har én række pr. parti i hvert område`;
             table = h('table', { class: 'pv pv2' },
               h('thead', {}, h('tr', {}, ['Område', 'Største parti', 'Stemmer', 'Mandater'].map((t, i) => h('th', { scope: 'col', class: i > 1 ? 'num' : '' }, t)))),
@@ -672,7 +725,7 @@
           }
           right.append(h('div', { class: 'preview' }, h('p', { class: 'pv-h' }, h('strong', {}, 'Sådan ser filen ud'), ' · ' + cap),
             tot,
-            h('div', { class: 'pv-box' }, table),
+            h('div', { class: 'pv-box', tabindex: '0', role: 'region', 'aria-label': 'Forhåndsvisning af filen – kan scrolles' }, table),
             h('p', { class: 'pv-n' }, `Filen har ${HEAD.length} kolonner: ${HEAD.join(', ')}. Ændring er målt i forhold til forrige valg af samme type.`)));
         }
         answer.append(lede, grid, strip(A));
