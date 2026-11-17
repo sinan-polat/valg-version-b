@@ -76,7 +76,7 @@
     const yearOf = k => +((String(ELS[k].date || '').match(/\d{4}/) || [0])[0]);
     const LATEST = Object.keys(ELS).sort((a, b) => yearOf(b) - yearOf(a))[0] || 'kv2025';
     const DEF = { do: 'se', hv: 'mand', omr: 'land', omr2: null, valg: LATEST, valg2: null, fmt: 'excel', side: null, sort: 'size', cmp: 'stem' };
-    const sideOf = st => !hasSeatsHere(st.valg, st.omr) ? 'kort' : st.side || (['ft', 'ep'].includes(typeOf(st.valg)) && st.omr === 'land' ? 'prikker' : 'kort');
+    const sideOf = st => st.side === 'valgte' && HAS_CAND(st.valg) ? 'valgte' : !hasSeatsHere(st.valg, st.omr) ? 'kort' : (st.side && st.side !== 'valgte' ? st.side : (['ft', 'ep'].includes(typeOf(st.valg)) && st.omr === 'land' ? 'prikker' : 'kort'));
     let ST = Object.assign({}, DEF);
     let current = null; // { pick }
     function normalize(st, changed, old) {
@@ -101,7 +101,8 @@
         }
       }
       if (!['excel', 'csv'].includes(st.fmt)) st.fmt = 'excel';
-      if (st.side && !['kort', 'prikker'].includes(st.side)) st.side = null;
+      if (st.hv === 'valgte') st.side = 'valgte'; /* gamle links: «de valgte» er nu en fane til højre */
+      if (st.side && !['kort', 'prikker', 'valgte'].includes(st.side)) st.side = null;
       return st;
     }
     function fromQuery(q) {
@@ -267,6 +268,22 @@
           h('strong', { class: 'val' }, val, h('span', { class: 'unit' }, unit)),
           h('span', { class: 'dl' + (delta && r.d != null && metric !== 'stem' ? (r.d > 0 ? ' up' : r.d < 0 ? ' dn' : '') : ''), 'aria-label': delta ? 'Ændring ' + delta : null }, delta));
       }));
+    }
+    /* resultatlisten med mandater OG stemmeandel på hver række – intet at skifte imellem (runde 8) */
+    function ballotBoth(rows, sortMode, hasM, hasPrev) {
+      const key = hasM ? 'm' : 'share';
+      const list = sortRows(rows.filter(r => r.share != null || r.m), sortMode, key);
+      const max = Math.max(1e-9, ...list.map(r => r[key] || 0));
+      const head = h('div', { class: 'bhead' + (hasM ? '' : ' nom'), 'aria-hidden': 'true' }, h('span', {}), h('span', {}, 'Parti'), hasM ? h('span', { class: 'r' }, 'Mandater') : null, h('span', { class: 'r' }, hasM ? 'Stemmer' : 'Andel'), h('span', { class: 'r' }, hasPrev ? 'Ændring' : ''));
+      const ol = h('ol', { class: 'ballot both' + (hasM ? '' : ' nom'), 'aria-label': hasM ? 'Mandater og stemmeandel pr. parti' : 'Stemmeandel pr. parti' }, list.map(r => {
+        const d = hasM ? dlt(r.d) : dlt(r.ds, 'pp'), dv = hasM ? r.d : r.ds;
+        return h('li', { class: 'row', title: `${r.p} – ${r.name}` }, letter(r.p),
+          h('span', { class: 'mid' }, h('span', { class: 'pn' }, r.name), h('span', { class: 'bar' }, h('i', { style: `width:${Math.max(1.5, (r[key] || 0) / max * 100)}%;background-color:${r.color}` }))),
+          hasM ? h('strong', { class: 'val' }, String(r.m), h('span', { class: 'unit' }, r.m === 1 ? ' mandat' : ' mandater')) : null,
+          h('span', { class: 'shr' }, r.share != null ? fmtP(r.share) : '–'),
+          h('span', { class: 'dl' + (dv != null && d ? (dv > 0 ? ' up' : dv < 0 ? ' dn' : '') : ''), 'aria-label': d ? 'Ændring ' + d : null }, d));
+      }));
+      return h('div', { class: 'bboth' }, head, ol);
     }
     /* to områder ved siden af hinanden */
     function compareRows(A, B, metric, sortMode, la, lb) {
@@ -549,50 +566,46 @@
         say.textContent = `Viser ${ST.do === 'se' ? 'resultat' : ST.do === 'sammenlign' ? 'sammenligning' : 'dataudtræk'} for ${areaIn(ST.omr)}.`;
         if (prev !== ST.valg) log('valgskift', ST.valg);
       }
-      current = { pick: id => { if (ST.do === 'sammenlign') update('omr2', { omr2: id }); else update('omr', { omr: id }); } };
+      current = { pick: id => { if (ST.do === 'sammenlign') update('omr2', { omr2: id }); else update('omr', { omr: id }); }, setDo: d => update('do', { do: d }) };
 
       /* ---- sætningen ---- */
       function drawSentence(focusKey, autoKey) {
         sentenceBox.innerHTML = '';
-        const doOpts = [{ items: [['se', 'se'], ['sammenlign', 'sammenligne'], ['hente', 'hente']] }];
         /* alle valg, grupperet efter type – feltet får søgning, fordi der er mere end ti */
         /* valget er to felter i sætningen: først typen (5 valg), så året (højst 7) – Hicks lov frem for én liste med 24 valg */
         const yLabel = v => String(yr(v)) + (ELS[v].short ? ' · ' + ELS[v].short : '');
         const valgSlots = (lab, key, cur, set) => [valgSlot(lab, cur, set, key)];
-        const hvItems = isFA(ST.valg) ? [['stem', 'resultatet']]
-          : (hasSeatsHere(ST.valg, ST.omr) ? [['mand', 'mandaterne']] : []).concat(sk[ST.omr] ? [] : [['stem', 'stemmerne']], HAS_CAND(ST.valg) ? [['valgte', 'de valgte']] : []);
+        /* runde 8: overskriften er selve spørgsmålet – «Hvordan gik [Folketingsvalg 2026] i [hele landet]?».
+           Se/sammenlign/hent vælges i headeren, og mandater og stemmer står side om side i svaret, så der ikke er felter at klikke sig igennem. */
+        const t1 = $('#dh1', el); t1.innerHTML = '';
         const parts = [];
-        parts.push('Jeg vil ', slot('Hvad vil du?', doOpts, ST.do, v => update('do', { do: v }), 'do'), ' ');
-        if (ST.do === 'se') parts.push(slot('Hvad vil du se?', [{ items: hvItems }], ST.hv, v => update('hv', { hv: v }), 'hv'), ' i ', slot('Område', areaGroups(ST.valg, 'se'), ST.omr, v => update('omr', { omr: v }), 'omr'));
-        else if (ST.do === 'sammenlign') parts.push(slot('Første område', areaGroups(ST.valg, 'sammenlign'), ST.omr, v => update('omr', { omr: v }), 'omr'), ' ved ', ...valgSlots('Første valg', 'valg', ST.valg, v => update('valg', { valg: v })),
-          ' med ', slot('Andet område', areaGroups(ST.valg, 'sammenlign'), ST.omr2, v => update('omr2', { omr2: v }), 'omr2'), ' ved ', ...valgSlots('Andet valg', 'valg2', ST.valg2, v => update('valg2', { valg2: v })));
+        if (ST.do === 'se') parts.push('Hvordan gik ', ...valgSlots('Valg', 'valg', ST.valg, v => update('valg', { valg: v })), ' i ', slot('Område', areaGroups(ST.valg, 'se'), ST.omr, v => update('omr', { omr: v }), 'omr'));
+        /* sammenligningen står fast på to linjer – én for hver side – så den aldrig skifter form */
+        else if (ST.do === 'sammenlign') parts.push(h('span', { class: 'hl' }, 'Sammenlign ', slot('Første område', areaGroups(ST.valg, 'sammenlign'), ST.omr, v => update('omr', { omr: v }), 'omr'), ' ved ', ...valgSlots('Første valg', 'valg', ST.valg, v => update('valg', { valg: v })), ' '),
+          h('span', { class: 'hl' }, 'med ', slot('Andet område', areaGroups(ST.valg, 'sammenlign'), ST.omr2, v => update('omr2', { omr2: v }), 'omr2'), ' ved ', ...valgSlots('Andet valg', 'valg2', ST.valg2, v => update('valg2', { valg2: v }))));
+        if (ST.do === 'hente') t1.textContent = H1.hente;
         else {
-          /* kun ét sted at vælge: trinene herunder. Sætningen fortæller roligt, hvad man er ved at hente. */
-          const fx = t => h('strong', { class: 'sfix' }, t);
-          if (hentStage === 0) parts.push('tal fra et valg');
-          else if (hentStage === 1) parts.push('tal fra ', fx(ELNAME[ST.valg]));
-          else parts.push('tallene for ', fx(areaLabel(ST.omr)), ' ved ', fx(ELNAME[ST.valg]), ' som ', fx(ST.fmt === 'excel' ? 'Excel-fil' : 'CSV-fil'));
+          if (ST.do === 'se') parts.push(h('span', { style: 'white-space:nowrap' }, parts.pop(), '?')); /* tegnet følger sidste felt og står aldrig alene på en linje */
+          t1.append(h('span', { class: 'hsent' + (ST.do === 'sammenlign' ? ' two' : '') }, parts));
         }
-        if (ST.do === 'se') parts.push(' ved ', ...valgSlots('Valg', 'valg', ST.valg, v => update('valg', { valg: v })));
-        parts.push(h('span', { style: 'white-space:nowrap' }, parts.pop(), '.')); /* punktummet følger sidste felt og står aldrig alene på en linje */
-        sentenceBox.append(h('p', { class: 'sent' }, parts));
         fitSentence();
-        const t1 = $('#dh1', el); if (t1) t1.textContent = H1[ST.do];
         document.title = H1[ST.do] + ' – valg.dk prototype (version D)';
-        if (autoKey && !RM) { const a = $(`[data-k="${autoKey}"]`, sentenceBox); if (a) a.animate([{ boxShadow: '0 0 0 0 rgba(0,130,62,.75)' }, { boxShadow: '0 0 0 12px rgba(0,130,62,0)' }], { duration: 900, iterations: 2, easing: 'ease-out' }); }
-        if (focusKey) { const f = $(`[data-k="${focusKey}"]`, sentenceBox); if (f) { f.focus(); if (!RM) f.animate([{ transform: 'scale(1.08)', boxShadow: '0 0 0 0 rgba(220,206,117,.95)' }, { transform: 'scale(1)', boxShadow: '0 0 0 10px rgba(220,206,117,0)' }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' }); } }
+        if (autoKey && !RM) { const a = $(`[data-k="${autoKey}"]`, t1); if (a) a.animate([{ boxShadow: '0 0 0 0 rgba(0,130,62,.75)' }, { boxShadow: '0 0 0 12px rgba(0,130,62,0)' }], { duration: 900, iterations: 2, easing: 'ease-out' }); }
+        if (focusKey) { const f = $(`[data-k="${focusKey}"]`, t1); if (f) { f.focus(); if (!RM) f.animate([{ transform: 'scale(1.08)', boxShadow: '0 0 0 0 rgba(220,206,117,.95)' }, { transform: 'scale(1)', boxShadow: '0 0 0 10px rgba(220,206,117,0)' }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' }); } }
       }
 
       /* sætningen står altid på én linje på store skærme: er den for lang, bliver skriften lidt mindre i stedet for at
          springe til to linjer og skubbe alt andet ned (feedback 17.11). På mobil må den gerne bryde. */
       function fitSentence() {
-        const p = sentenceBox.querySelector('.sent'); if (!p) return;
-        p.style.fontSize = ''; p.style.whiteSpace = '';
+        const t1 = $('#dh1', el), p = t1 && t1.querySelector('.hsent'); if (!p) { if (t1) t1.style.fontSize = ''; return; }
+        t1.style.fontSize = ''; p.style.whiteSpace = '';
         if (matchMedia('(max-width:900px)').matches) return;
         p.style.whiteSpace = 'nowrap';
-        const avail = sentenceBox.clientWidth; if (!avail) return;
-        let fs = parseFloat(getComputedStyle(p).fontSize), guard = 40;
-        while (p.scrollWidth > avail + 1 && fs > 14 && guard--) { fs -= 0.5; p.style.fontSize = fs + 'px'; }
+        const avail = t1.clientWidth; if (!avail) return;
+        const wide = () => Math.max(...[...p.querySelectorAll(':scope > .hl')].map(x => x.getBoundingClientRect().width), p.getBoundingClientRect().width * (p.classList.contains('two') ? 0 : 1));
+        let fs = parseFloat(getComputedStyle(t1).fontSize), guard = 80;
+        while (wide() > avail + 1 && fs > 22 && guard--) { fs -= 0.5; t1.style.fontSize = fs + 'px'; }
+        if (wide() > avail + 1) p.style.whiteSpace = ''; /* kan den ikke stå på én linje, må den bryde */
       }
 
       /* ---- svaret ---- */
@@ -615,23 +628,23 @@
         const sortSeg = (extra) => h('div', { class: 'seg2', role: 'group', 'aria-label': 'Sortér partierne' }, [['size', 'Størst først'], ['alpha', 'A–Å']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(ST.sort === v), onclick: () => { ST.sort = v; drawAnswer(); } }, t)), extra || null);
 
         if (ST.do === 'se') {
-          setLede(ST.hv === 'valgte' && !A.pending ? `Her er de valgte i ${areaIn(ST.omr)}, med flest personlige stemmer først.` : ledeSe(ST.omr, ST.valg, A));
+          setLede(ledeSe(ST.omr, ST.valg, A));
           if (A.pending) left.append(h('div', { class: 'empty' }, h('strong', {}, 'Optælles stadig'), h('span', {}, 'Resultatet kommer, så snart kommunen er talt op.')));
-          else if (ST.hv === 'valgte') left.append(electedList(ST.omr, ST.valg));
           else {
             const pv = ELS[ST.valg].prev;
             const cmpPrev = pv ? h('a', { class: 'dbtn small ghost cmpprev', href: toHash({ do: 'sammenlign', omr: ST.omr, valg: ST.valg, omr2: ST.omr, valg2: pv }), onclick: () => log('sammenlign-forrige', ST.omr) }, `Sammenlign med ${yr(pv)}`) : null;
-            const what = ST.hv === 'stem' ? 'Stemmeandel' : 'Mandater';
+            const what = isFA(ST.valg) ? 'Resultatet' : A.hasM ? 'Mandater og stemmer' : 'Stemmer';
             const why = isFA(ST.valg) ? (ELS[ST.valg].question || '') : !A.hasM ? `Ved ${typeWord(ST.valg)} fordeles mandaterne ${typeOf(ST.valg) === 'rv' ? 'i regionerne' : 'for hele landet'}, ikke i ${levelOf(ST.omr) === 'kommune' ? 'den enkelte kommune' : 'den enkelte region'} – derfor ser du stemmerne her.` : '';
             left.append(h('div', { class: 'ctl' }, sortSeg(), cmpPrev),
               h('p', { class: 'bcap' }, h('strong', {}, `${what} ved ${lowerFirst(ELNAME[ST.valg])}`), pv ? ` · tallet til højre er ændringen siden ${yr(pv)}` : ''),
               ...(why ? [h('p', { class: 'bcap why' }, why)] : []),
-              ballot(A.rows, ST.hv, ST.sort));
+              ballotBoth(A.rows, ST.sort, A.hasM, !!pv));
           }
           {
-            const tabs = h('div', { class: 'seg2', role: 'group', 'aria-label': 'Vis til højre' }, [['kort', 'Kort']].concat(A.hasM ? [['prikker', 'Mandatfordeling']] : []).map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(sideOf(ST) === v), onclick: () => { ST.side = v; drawAnswer(); } }, t)));
+            const tabs = h('div', { class: 'seg2', role: 'group', 'aria-label': 'Vis til højre' }, [['kort', 'Kort']].concat(A.hasM ? [['prikker', 'Mandatfordeling']] : [], HAS_CAND(ST.valg) ? [['valgte', 'De valgte']] : []).map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(sideOf(ST) === v), onclick: () => { ST.side = v; drawAnswer(); } }, t)));
             const host = h('div', { class: 'dview' });
-            if (sideOf(ST) === 'prikker' && !A.pending) host.append(h('div', { class: 'dots' }, hemicycle(seatsOf(A), { label: 'Mandatfordeling: ' + A.rows.filter(r => r.m).sort((a, b) => b.m - a.m).map(r => `${r.p} ${r.m}`).join(', ') })));
+            if (sideOf(ST) === 'valgte' && !A.pending) host.append(h('p', { class: 'bcap' }, h('strong', {}, `De valgte i ${areaIn(ST.omr)}`), ' · flest personlige stemmer først'), electedList(ST.omr, ST.valg));
+            else if (sideOf(ST) === 'prikker' && !A.pending) host.append(h('div', { class: 'dots' }, hemicycle(seatsOf(A), { label: 'Mandatfordeling: ' + A.rows.filter(r => r.m).sort((a, b) => b.m - a.m).map(r => `${r.p} ${r.m}`).join(', ') })));
             else paintMap(host);
             right.append(h('div', { class: 'ctl right' }, tabs), host);
           }
@@ -781,8 +794,11 @@
       /* ---- sammensætning ---- */
       const finder = S.searchBox({ placeholder: 'Kommune, kandidat eller parti', id: 'dq', onKommune: id => { finder.inp.value = ''; current.pick(id); } });
       finder.form.classList.add('dfind');
+      /* på mobil er headerens faner skjult – her står de i stedet som en fast fanerække */
+      const mtabs = h('nav', { class: 'mtabs', 'aria-label': 'Vælg visning' }, [['se', 'Resultater'], ['sammenlign', 'Sammenlign'], ['hente', 'Hent data']].map(([k, t]) => h('a', { href: '#/?do=' + k, 'data-d': k, 'aria-current': ST.do === k ? 'page' : null, onclick: e => { e.preventDefault(); update('do', { do: k }); mtabs.querySelectorAll('a').forEach(a => { if (a.dataset.d === ST.do) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }); markNav(); } }, t)));
+      el.append(mtabs);
       el.append(h('div', { class: 'dtop' }, h('div', { class: 'dtitle' }, h('h1', { id: 'dh1' }, 'Hvordan gik valget?'), h('div', { class: 'dfind-wrap' }, h('label', { class: 'or', for: 'dq' }, 'eller søg'), finder.form)),
-        h('div', { class: 'sent-row' }, sentenceBox)), answer, say);
+      ), answer, say);
       let fitT = null; window.addEventListener('resize', () => { if (!el.isConnected) return; clearTimeout(fitT); fitT = setTimeout(fitSentence, 80); });
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (el.isConnected) fitSentence(); });
       drawSentence(); drawAnswer(); setHash();
@@ -859,7 +875,13 @@
     const bn = $('.proto-banner'); if (bn) bn.innerHTML = '<span class="lg">Prototype til bachelorprojekt – ikke den officielle Valg.dk. Alle tal er eksempeldata.</span><span class="sh">Prototype – ikke officiel · eksempeldata</span>';
     const hdrIn = $('.site-header .in');
     const navD = h('nav', { class: 'nav-d', 'aria-label': 'Hovedmenu' },
-      [['#/?do=se', 'Resultater', 'se'], ['#/?do=sammenlign', 'Sammenlign', 'sammenlign'], ['#/?do=hente', 'Hent data', 'hente'], ['#/kredse', 'Kandidater og kredse', 'kredse']].map(([hr, t, k]) => h('a', { href: hr, 'data-d': k }, t)));
+      [['#/?do=se', 'Resultater', 'se', 'M3 20V10M9 20V4M15 20v-8M21 20V8'], ['#/?do=sammenlign', 'Sammenlign', 'sammenlign', 'M7 7h13m0 0-4-4m4 4-4 4M17 17H4m0 0 4-4m-4 4 4 4'], ['#/?do=hente', 'Hent data', 'hente', 'M12 4v11m0 0-4-4m4 4 4-4M5 20h14'], ['#/kredse', 'Kandidater og kredse', 'kredse', 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2.5 20a5.5 5.5 0 0 1 11 0m-.5-1a5.5 5.5 0 0 1 8.5-3.5']].map(([hr, t, k, ic]) => {
+        const a = h('a', { href: hr, 'data-d': k }, t);
+        a.insertAdjacentHTML('afterbegin', `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${ic}"/></svg>`);
+        /* står man allerede på forsiden, skifter fanen kun tilstand – område og valg bevares */
+        if (k !== 'kredse') a.addEventListener('click', e => { const raw = location.hash.replace(/^#/, '') || '/'; if (current && current.setDo && (raw === '/' || raw.startsWith('/?')) && !e.metaKey && !e.ctrlKey) { e.preventDefault(); current.setDo(k); markNav(); } });
+        return a;
+      }));
     hdrIn.insertBefore(navD, $('.hdr-tools', hdrIn));
     $('.hdr-tools', hdrIn).prepend(h('a', { class: 'hdr-btn tvlink', href: '#/storskaerm' }, 'Storskærm'));
     function markNav() {

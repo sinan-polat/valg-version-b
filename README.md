@@ -88,6 +88,16 @@ Siden har `noindex`, så søgemaskiner ikke bør vise den, men et offentligt lin
 
 UX-gennemgangen med bots, friktionstabel og Dommerens vurdering ligger i `docs/ux-gennemgang-version-d.md`.
 
+### Runde 7–8 (17. november 2026): mindre at klikke, mere overblik
+
+* **Overskriften er spørgsmålet:** «Hvordan gik [Folketingsvalg 2026] i [hele landet]?» Ved sammenligning står den fast på to linjer: «Sammenlign [Hørsholm] ved [Regionsrådsvalg 2025] / med [hele landet] ved [Regionsrådsvalg 2025]». Er den for lang, bliver skriften mindre i stedet for at skifte form.
+* **Visning vælges i headeren:** «se / sammenligne / hente» er ikke længere et felt i sætningen. Fanerne Resultater, Sammenlign og Hent data har ikoner, og den aktive fane er en lys knap (Storskærm er gjort mere afdæmpet). Skifter man fane på forsiden, beholdes område og valg. På mobil står fanerne som en fanerække øverst.
+* **Mandater og stemmer side om side:** Hver parti-række viser mandater, stemmeandel og ændring – ingen «mandaterne/stemmerne»-vælger. «De valgte» er en fane til højre ved siden af Kort og Mandatfordeling.
+* **Ét valgfelt:** Panel med typer til venstre og år (med dato) til højre – 2 klik i stedet for 4, og fuld tastaturstyring.
+* **Roligere farver:** Felterne er understreget tekst i stedet for gule bokse.
+* **Hent data:** Ingen sætning – kun overskriften og de tre trin. Siden står stille; kun forhåndsvisningen scroller.
+* **Sammenligning:** Én værdi pr. parti (forskellen, grøn/rød). Begge tal ses, når man peger på eller fokuserer rækken.
+
 ### Runde 6 (17. november 2026): rettelser efter gennemgang
 
 * **Kortet styrer tallene:** «Hele Danmark» viser nu hele landet, og «Region Hovedstaden» (før «Københavnsområdet») viser regionen – også i tallene til venstre. Før flyttede knapperne kun kortet. Den valgte knap er markeret.

@@ -715,3 +715,39 @@ body[data-ver="d"] .ballot.cmp .row{grid-template-columns:34px minmax(0,1fr) 96p
 .cmp-key .k.b::before{background:var(--ink);opacity:.38;outline:0}
 @media (max-width:520px){body[data-ver="d"] .ballot.cmp .row{grid-template-columns:26px minmax(0,1fr) 80px}}
 .pv-box{flex:0 1 auto;min-height:0}
+/* Runde 8 (17.11): overskriften er spørgsmålet, tydelig header, mandater og stemmer side om side */
+/* header: den aktive fane er den tydeligste ting i headeren; Storskærm træder et skridt tilbage */
+body[data-ver="d"] .nav-d a{display:inline-flex;align-items:center;gap:8px;font-size:16px;font-weight:600;padding:9px 16px;color:#fff;opacity:.92}
+body[data-ver="d"] .nav-d a svg{flex:none;opacity:.85}
+body[data-ver="d"] .nav-d a:hover{opacity:1;background:rgba(255,255,255,.12)}
+body[data-ver="d"] .nav-d a[aria-current="page"]{background:var(--chip,#F1E7B5);color:var(--ink);opacity:1;box-shadow:none}
+body[data-ver="d"] .nav-d a[aria-current="page"] svg{opacity:1}
+body[data-ver="d"] .hdr-btn.tvlink{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.35)}
+body[data-ver="d"] .hdr-btn.tvlink:hover{background:rgba(255,255,255,.2);color:#fff}
+/* overskriften med felter */
+.dtitle{flex-wrap:nowrap;align-items:center}
+.dtitle h1{flex:1 1 auto;min-width:0}
+body[data-ver="d"] .dtop h1 .slot{font-size:1em;font-weight:700;box-shadow:inset 0 -.08em 0 var(--slate,#3F5061);padding:0 .08em;margin:0 .04em;border-radius:6px;line-height:1.15}
+body[data-ver="d"] .dtop h1 .slot .chev{width:.42em;margin-left:.12em}
+.hsent{display:inline}
+@media (max-width:900px){.dtitle{flex-wrap:wrap}.dtitle h1{flex-basis:100%}body[data-ver="d"] .dtop h1{font-size:26px;line-height:1.35}}
+/* resultatlisten: mandater, stemmeandel og ændring på samme række */
+.bboth{display:flex;flex-direction:column;min-height:0;flex:1 1 0}
+.bhead,.ballot.both .row{display:grid;grid-template-columns:34px minmax(0,1fr) 112px 64px 52px;gap:0 12px;align-items:center}
+.ballot.both.nom .row,.bboth .ballot.nom~*{grid-template-columns:34px minmax(0,1fr) 76px 64px}
+.bhead{font-size:12px;color:var(--muted);font-weight:600;padding:0 4px 4px 2px}
+.bhead .r{text-align:right}
+.ballot.both .shr{text-align:right;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted);font-weight:500}
+.ballot.both.nom .shr{font:700 clamp(18px,1.2vw + 1vh,24px)/1 var(--font);color:var(--ink)}
+.ballot.both .dl{text-align:right}
+@media (max-width:520px){.bhead,.ballot.both .row{grid-template-columns:26px minmax(0,1fr) 44px 52px 44px;gap:0 6px}.ballot.both .unit{display:none}.ballot.both .shr{font-size:13px}}
+.bhead.nom{grid-template-columns:34px minmax(0,1fr) 76px 64px}@media (max-width:520px){.bhead.nom,.ballot.both.nom .row{grid-template-columns:26px minmax(0,1fr) 60px 50px}}
+.hsent{display:inline-block}
+.hsent.two .hl{display:block;width:max-content}
+.dtitle h1{flex:1 1 0}
+body[data-ver="d"] .dtop h1 .slot{gap:.12em}
+.dtitle .dfind-wrap{align-self:flex-start;margin-top:.35em}
+.mtabs{display:none}
+@media (max-width:900px){.mtabs{display:flex;gap:4px;padding:4px;margin:0 0 10px;background:var(--sheet,#EEF1F4);border-radius:12px}
+.mtabs a{flex:1;text-align:center;padding:9px 6px;border-radius:9px;font:600 14.5px var(--font);color:var(--ink);text-decoration:none}
+.mtabs a[aria-current="page"]{background:var(--ink);color:#fff}}
