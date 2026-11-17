@@ -88,6 +88,13 @@ Siden har `noindex`, så søgemaskiner ikke bør vise den, men et offentligt lin
 
 UX-gennemgangen med bots, friktionstabel og Dommerens vurdering ligger i `docs/ux-gennemgang-version-d.md`.
 
+### Runde 10 (17. november 2026): sammenligning og små skærme
+
+* **Valgtypen følger med i sammenligningen:** Skifter man valgtype på den ene side, skifter den anden side selv til samme type, og feltet blinker grønt (skærmlæsere får besked). Sammenlignes to områder ved samme valg, følges de ad (Folketingsvalg 2026 → Kommunalvalg 2025 på begge sider). Sammenlignes to valg, vælges nærmeste valg af typen – ældre på anden side (Kommunalvalg 2025 → Kommunalvalg 2021), nyere på første side. Typer kan ikke længere blandes via felterne.
+* **Mobil:** Sammenligningens to linjer bryder i stedet for at blive skåret af, og «Stemmer/Mandater» og sortering står på én linje. De to tal pr. parti («16,2 % · 44,0 %») knækker ikke.
+* **Lave skærme (1280×680):** Partinøglen over sammenligningen knækker ikke; tippet «peg på en række …» skjules. Knækker status-linjen under svaret, bruges knappernes korte tekster, så rækkerne får pladsen. To valgdage skrives uden ugedag.
+* **Konsol:** favicon (img/valg.svg) er tilføjet, så konsollen er fri for 404-fejl.
+
 ### Runde 7–8 (17. november 2026): mindre at klikke, mere overblik
 
 * **Overskriften er spørgsmålet:** «Hvordan gik [Folketingsvalg 2026] i [hele landet]?» Ved sammenligning står den fast på to linjer: «Sammenlign [Hørsholm] ved [Regionsrådsvalg 2025] / med [hele landet] ved [Regionsrådsvalg 2025]». Er den for lang, bliver skriften mindre i stedet for at skifte form.
