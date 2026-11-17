@@ -88,11 +88,10 @@ Siden har `noindex`, så søgemaskiner ikke bør vise den, men et offentligt lin
 
 UX-gennemgangen med bots, friktionstabel og Dommerens vurdering ligger i `docs/ux-gennemgang-version-d.md`.
 
-### Runde 10 (17. november 2026): sammenligning og små skærme
+### Runde 10 (17. november 2026): Sammenlign i trin efter pilottesten
 
-* **Valgtypen følger med i sammenligningen:** Skifter man valgtype på den ene side, skifter den anden side selv til samme type, og feltet blinker grønt (skærmlæsere får besked). Sammenlignes to områder ved samme valg, følges de ad (Folketingsvalg 2026 → Kommunalvalg 2025 på begge sider). Sammenlignes to valg, vælges nærmeste valg af typen – ældre på anden side (Kommunalvalg 2025 → Kommunalvalg 2021), nyere på første side. Typer kan ikke længere blandes via felterne.
-* **Mobil:** Sammenligningens to linjer bryder i stedet for at blive skåret af, og «Stemmer/Mandater» og sortering står på én linje. De to tal pr. parti («16,2 % · 44,0 %») knækker ikke.
-* **Lave skærme (1280×680):** Partinøglen over sammenligningen knækker ikke; tippet «peg på en række …» skjules. Knækker status-linjen under svaret, bruges knappernes korte tekster, så rækkerne får pladsen. To valgdage skrives uden ugedag.
+* **Sammenlign er bygget om i trin (som Hent data):** 1 Hvilket valg? 2 Hvad vil du sammenligne? («Kommuner side om side», «Regioner side om side», «Udvikling over tid») 3 Hvilke områder (2–3 med «+ Tilføj» og søgning) eller hvor og mod hvilket tidligere år. Svaret står til højre: valgmærke («Kommunalvalg 2025 mod 2021»), én sætning, et kort pr. område og én tabel med forskel/ændring. Kortet er fjernet fra Sammenlign. Ugyldige sammenligninger (to ens år, region mod kommune, hele landet mod en kommune) kan ikke vælges. På mobil er trinene foldet bag «Ret». Bygger på pilottesten med P01 – se `docs/sammenlign-runde10.md` (fund → ændring, testopgaver, forslag til rapporttekst) og `docs/runde10/Bilagsfigur13_sammenlign_foer_efter.png`. Nye parametre: `cm` (kom/reg/tid) og `omr3`; gamle links virker stadig.
+* **Lave skærme (1280×680):** Knækker status-linjen under svaret, bruges knappernes korte tekster, så rækkerne får pladsen.
 * **Hent data → Én kommune:** Kommunen vælges i et felt med søgning (skriv «høje» → Høje-Taastrup) i stedet for en liste med 98 kommuner. Din kommune står øverst. Regionen er stadig en almindelig liste (kun 5).
 * **Konsol:** favicon (img/valg.svg) er tilføjet, så konsollen er fri for 404-fejl.
 
