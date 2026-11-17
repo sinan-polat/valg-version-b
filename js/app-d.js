@@ -97,7 +97,8 @@
            kom = to kommuner ved samme valg · reg = to regioner ved samme valg (altid to – feedback 17.11) · tid = samme sted ved et tidligere valg af samme type.
            Ugyldige kombinationer (region mod kommune, hele landet mod en kommune, to ens år) kan derfor ikke opstå. */
         const lv = levelOf(st.omr);
-        if (!['kom', 'reg', 'tid'].includes(st.cm)) st.cm = !st.omr2 || st.omr2 === st.omr || lv === 'land' ? 'tid' : lv === 'region' ? 'reg' : 'kom';
+        /* runde 10: uden valgt måde åbner Sammenlign på «To kommuner» (det flest vil – spørgeskemaet 29 mod 18, og T2). «Over tid» kun når linket beder om det (samme sted, fx «Sammenlign med 2021»). */
+        if (!['kom', 'reg', 'tid'].includes(st.cm)) st.cm = st.omr2 && st.omr2 === st.omr ? 'tid' : lv === 'region' || (st.omr2 && levelOf(st.omr2) === 'region') ? 'reg' : 'kom';
         if (st.cm === 'tid') {
           st.omr2 = st.omr; st.omr3 = null;
           const l = elsOfType(typeOf(st.valg));
@@ -790,10 +791,11 @@
         let s3, s3t;
         if (ST.cm === 'tid') {
           s3t = 'Hvor, og mod hvilket valg?';
-          const where = slot('Område', areaGroups(ST.valg, 'sammenlign'), ST.omr, v => update('omr', { omr: v }), 'cwhere'); where.classList.add('cchip'); { const t = where.querySelector('.sl-t'); if (t) t.textContent = areaName(ST.omr); }
+          const where = slot('Område', areaGroups(ST.valg, 'sammenlign'), ST.omr, v => { update('omr', { omr: v }); refocus('[data-k="cwhere"]'); }, 'cwhere'); where.classList.add('cchip'); { const t = where.querySelector('.sl-t'); if (t) t.textContent = areaName(ST.omr); }
           const older = elsOfType(tNow).filter(v => yr(v) < yr(ST.valg));
-          s3 = h('div', { class: 'cpick' }, h('div', { class: 'crow' }, where),
-            h('div', { class: 'seg2 wrap', role: 'group', 'aria-label': 'Mod hvilket tidligere valg?' }, older.map(v => h('button', { type: 'button', 'data-opt': 'c2-' + v, 'aria-pressed': String(ST.valg2 === v), 'aria-label': ELNAME[v], onclick: () => { update('valg2', { valg2: v }); refocus(`[data-opt="c2-${v}"]`); } }, String(yr(v))))),
+          /* runde 10: «mod hvilket år» er et felt ved siden af stedet (samme form som «To kommuner»), så panelet ikke skal scrolle */
+          const mod = slot('Mod hvilket tidligere valg', [{ items: older.map(v => [v, String(yr(v))]) }], ST.valg2, v => { update('valg2', { valg2: v }); refocus('[data-k="cvalg2"]'); }, 'cvalg2'); mod.classList.add('cchip');
+          s3 = h('div', { class: 'cpick' }, h('div', { class: 'crow' }, where, h('span', { class: 'cmod' }, 'mod'), mod),
             h('p', { class: 'hhint' }, `Kun tidligere ${typeWord(ST.valg)}${isFA(ST.valg) ? 'er' : ''}.`));
         } else {
           const kom = ST.cm === 'kom', L = [ST.omr, ST.omr2, ST.omr3].filter(Boolean);
@@ -801,7 +803,7 @@
           const pool = kom ? komSorted.map(k => [k.id, k.name]) : REG.map(r => [r.id, r.name]);
           const setAt = (i, v) => { const M = L.slice(); const j = M.indexOf(v); if (j >= 0) M[j] = M[i]; M[i] = v; update('omr2', { omr: M[0], omr2: M[1] }); };
           const chips = L.map((id, i) => {
-            const b = slot(`${kom ? 'Kommune' : 'Region'} ${i + 1}`, [{ items: pool }], id, v => setAt(i, v), 'ca' + i); b.classList.add('cchip'); b.insertAdjacentHTML('afterbegin', `<span class="ck" style="background:${CKEY[i]}" aria-hidden="true"></span>`);
+            const b = slot(`${kom ? 'Kommune' : 'Region'} ${i + 1}`, [{ items: pool }], id, v => { setAt(i, v); refocus(`[data-k="ca${i}"]`); }, 'ca' + i); b.classList.add('cchip'); b.insertAdjacentHTML('afterbegin', `<span class="ck" style="background:${CKEY[i]}" aria-hidden="true"></span>`);
             const x = L.length > 2 ? h('button', { type: 'button', class: 'cx', 'aria-label': 'Fjern ' + areaName(id), onclick: () => { const M = L.filter(y => y !== id); update('omr3', { omr: M[0], omr2: M[1], omr3: null }); refocus('[data-k="cadd"]'); } }, '×') : null;
             return h('span', { class: 'cchipw' }, b, x);
           });
