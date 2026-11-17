@@ -2,7 +2,7 @@
 
 Kodet, klikbar prototype (ren HTML, CSS og JavaScript – ingen frameworks, ingen server) af en **opgavebaseret informationsarkitektur** for Valg.dk. Den er lavet til at blive testet med rigtige brugere og dokumenteret i bachelorprojektet.
 
-> **Vigtigt:** Alle tal er **eksempeldata** (genereret af `tools/generate_data.py`). Prototypen er **ikke** den officielle Valg.dk og indeholder ingen officielle valgresultater. Det fremgår af banner og footer på alle sider.
+> **Vigtigt:** Resultaterne pr. kommune er **officielle tal fra Danmarks Statistik** (bygget af `tools/officielle_tal.py`, se Runde 10). Afstemningsområder, opstillingskredse og kandidatnavne er **opdigtede**. Prototypen er **ikke** den officielle Valg.dk. Det fremgår af banner og footer på alle sider.
 
 Hvad kan prototypen?
 | Skærm | Adresse | Hvad virker |
@@ -10,7 +10,7 @@ Hvad kan prototypen?
 | Forside | #/ | Én skærm uden scroll: søgning og kommunevalg til venstre; til højre et kort med faner (**Mandatfordeling** · **Kort** · **Hvem er valgt ind?**) og skift mellem Kommunal- og Folketingsvalg. **Din kommune:** vælg en kommune i søgningen, i listen eller ved at klikke på kortet, så skifter kortet til kommunens resultat uden sideskift. Valget huskes i browseren (localStorage) og kan fjernes med «Hele landet». Valgaftens-simulationen startes med knappen i kortet og vises som en bjælke; «Din kommune» viser, om kommunen er optalt endnu |
 | Find resultat | #/find | Valg, søgning på kommune/region, hurtigvalg for Hele landet og regioner |
 | Resultat | #/resultat/horsholm, #/resultat/region-hovedstaden, #/resultat/land | Mandater, sortering, ændring, kort og kommuneliste for regioner/landet, download |
-| Sammenlign | #/sammenlign | 2–3 områder (kommuner, regioner, hele landet) i diagram eller tabel |
+| Sammenlign | #/sammenlign | 2 områder (kommuner, regioner, hele landet) i diagram eller tabel |
 | Hent data | #/data | Guide i 4 trin: nøgletal/parti, hele landet/regioner/kommuner, valg, format. Forhåndsvisning og download |
 | Afstemningsområde | #/resultat/horsholm/o1 | Stemmer pr. parti på afstemningsområde-niveau (eksempeldata, fiktive navne), ændring ift. forrige valg, download. Mandater vises kun på kommuneniveau. |
 | Parti | #/parti/V | Søg på partinavn eller bogstav (forslag på forsiden). Landstal, ændring og alle kommuner sorteret efter andel/mandater, download. Kandidatsøgning er ikke med (ender i blindgyde). |
@@ -37,7 +37,7 @@ Opdater siden: git add . / git commit -m "Opdatering" / git push.
 | Kommunesiden | #/resultat/… | Nyt afsnit med valgte byrådsmedlemmer og alle kandidater pr. parti |
 | Metode | #/metode | Enkelt svar på: hvad er mandatfordeling, og hvem er valgt ind? |
 
-**Data:** `tools/generate_kandidater.py` laver `js/kandidater.js` ud fra `js/data.js`. Alle navne er fiktive, "Folketingsvalg (eksempel)" er et opdigtet valg, og mandatfordelingen er en forenklet beregning. Opstillingskredsene er en forenklet inddeling (ca. 95), ikke den officielle. Kør `python3 tools/generate_data.py` og derefter `python3 tools/generate_kandidater.py`, hvis du vil have nye tal.
+**Data:** `tools/generate_kandidater.py` laver `js/kandidater.js` ud fra `js/data.js`. Alle navne er fiktive. Kredsenes stemmer er de officielle kommunetal fra Folketingsvalg 2026 fordelt på kredsene, og landets 175 mandater er de officielle; fordelingen på storkredse og kandidater er forenklet. Opstillingskredsene er en forenklet inddeling (ca. 95), ikke den officielle. Kør `python3 tools/officielle_tal.py` og derefter `python3 tools/generate_kandidater.py`, hvis du vil bygge tallene igen.
 
 Kommentar til rapporten: version C er en tredje variant og indgår ikke i A/B-testen, medmindre du selv beslutter det. Metodeteksten på #/metode er skrevet til prototypen og skal kontrolleres mod officielle kilder.
 
@@ -90,7 +90,9 @@ UX-gennemgangen med bots, friktionstabel og Dommerens vurdering ligger i `docs/u
 
 ### Runde 10 (17. november 2026): Sammenlign i trin efter pilottesten
 
-* **Sammenlign er bygget om i trin (som Hent data):** 1 Hvilket valg? 2 Hvad vil du sammenligne? («Kommuner side om side», «Regioner side om side», «Udvikling over tid») 3 Hvilke områder (2–3 med «+ Tilføj» og søgning) eller hvor og mod hvilket tidligere år. Svaret står til højre: valgmærke («Kommunalvalg 2025 mod 2021»), én sætning, et kort pr. område og én tabel med forskel/ændring. Kortet er fjernet fra Sammenlign. Ugyldige sammenligninger (to ens år, region mod kommune, hele landet mod en kommune) kan ikke vælges. På mobil er trinene foldet bag «Ret». Bygger på pilottesten med P01 – se `docs/sammenlign-runde10.md` (fund → ændring, testopgaver, forslag til rapporttekst) og `docs/runde10/Bilagsfigur13_sammenlign_foer_efter.png`. Nye parametre: `cm` (kom/reg/tid) og `omr3`; gamle links virker stadig.
+* **Kun to ad gangen:** Sammenlign viser altid præcis to kommuner eller to regioner (ingen «+ Tilføj» til en tredje). Gamle links med `omr3` ignoreres.
+* **Officielle tal:** Alle resultater pr. kommune er nu Danmarks Statistiks tal (Statistikbanken KVRES, FVKOM, EVKOM1, FAKOM og LIGEDB2 for byrådenes størrelse), gemt i `tools/kilder/`. `tools/officielle_tal.py` bygger `js/data.js`; kør `python3 tools/officielle_tal.py && python3 tools/generate_kandidater.py`. Landstallene (stemmer, procenter, valgdeltagelse) passer med de officielle for alle valg, og folketings- og EP-mandaterne er de officielle. **Forenklet:** Kommunalvalgenes mandater er regnet med d'Hondt uden valgforbund og kan afvige med ét mandat (Hørsholm og Ishøj er rettet til de officielle). Regionsrådsvalgene, Folketingsvalg 2005 og EP-valg 2004 er modelleret ud fra officielle landstal. Der er fortsat fem regioner. Afstemningsområder, opstillingskredse og kandidatnavne er opdigtede, men summerer til kommunens officielle tal.
+* **Sammenlign er bygget om i trin (som Hent data):** 1 Hvilket valg? 2 Hvad vil du sammenligne? («To kommuner», «To regioner», «Udvikling over tid») 3 Hvilke to områder (med søgning) eller hvor og mod hvilket tidligere år. Svaret står til højre: valgmærke («Kommunalvalg 2025 mod 2021»), én sætning, et kort pr. område og én tabel med forskel/ændring. Kortet er fjernet fra Sammenlign. Ugyldige sammenligninger (to ens år, region mod kommune, hele landet mod en kommune) kan ikke vælges. På mobil er trinene foldet bag «Ret». Bygger på pilottesten med P01 – se `docs/sammenlign-runde10.md` (fund → ændring, testopgaver, forslag til rapporttekst) og `docs/runde10/Bilagsfigur13_sammenlign_foer_efter.png`. Nye parametre: `cm` (kom/reg/tid) og `omr3`; gamle links virker stadig.
 * **Lave skærme (1280×680):** Knækker status-linjen under svaret, bruges knappernes korte tekster, så rækkerne får pladsen.
 * **Hent data → Én kommune:** Kommunen vælges i et felt med søgning (skriv «høje» → Høje-Taastrup) i stedet for en liste med 98 kommuner. Din kommune står øverst. Regionen er stadig en almindelig liste (kun 5).
 * **Konsol:** favicon (img/valg.svg) er tilføjet, så konsollen er fri for 404-fejl.
@@ -183,9 +185,9 @@ Testopgaver og forventede svar
 
 | Id | Brugergruppe | Opgave | Forventet svar |
 |---|---|---|---|
-| T1 | Borger | Find ud af, hvor mange mandater Hørsholm Kommune fik ved Kommunalvalg 2025, og hvilket parti der fik flest. | 19 mandater. Parti C (Konservative) fik flest (6). |
+| T1 | Borger | Find ud af, hvor mange mandater Hørsholm Kommune fik ved Kommunalvalg 2025, og hvilket parti der fik flest. | 19 mandater. Parti C (Konservative) fik flest (7). |
 | T2 | Journalist/analytiker | Sammenlign mandatfordelingen i Hørsholm og Ishøj, og hent tallene, så du kan åbne dem i et regneark. | Sammenligningssiden Hørsholm vs. Ishøj og en downloadet fil. |
-| T3 | Borger/analytiker | Find ud af, hvilket parti der fik flest mandater i Ishøj, og om partiet fik flere eller færre end ved valget i 2021. | A (Socialdemokratiet), 9 mandater, ét færre end 2021. |
+| T3 | Borger/analytiker | Find ud af, hvilket parti der fik flest mandater i Ishøj, og om partiet fik flere eller færre end ved valget i 2021. | A (Socialdemokratiet), 7 mandater, to færre end 2021 (9). |
 | T4 | Journalist/analytiker | Hent valgtal fra alle kommuner i Region Hovedstaden til et regneark. | Hent data > Udvalgte regioner > Region Hovedstaden, 29 kommuner, download. |
 
 Forslag til succeskriterier: T1 inden for 30 sekunder uden hjælp; T2 når eksport uden hjælp; T3 inden for 60 sekunder. Brug 3–5 deltagere pr. brugergruppe.
@@ -207,9 +209,9 @@ Forslag til succeskriterier: T1 inden for 30 sekunder uden hjælp; T2 når ekspo
 - Sammenligning kan have op til **tre** områder, og der er fire mål.
 - Eksport findes i to formater: **Excel** (semikolon, decimalkomma, åbner direkte i dansk Excel) og **CSV (UTF-8)** (komma, decimalpunktum).
 
-## Skift eksempeldata ud med rigtige tal
+## Hvor tallene kommer fra
 
-`js/data.js` er genereret. Strukturen er beskrevet i `tools/generate_data.py`. Du kan enten ændre scriptet og køre `python3 tools/generate_data.py`, eller erstatte `js/data.js` med data i samme format (`window.DATA = {...}`). Ved rigtige tal bør du fjerne "eksempeldata"-teksterne (søg efter "eksempeldata" i `js/app.js` og `index.html`).
+`js/data.js` er genereret af `tools/officielle_tal.py` ud fra Danmarks Statistiks tal i `tools/kilder/` (se Runde 10). Ret ikke `js/data.js` i hånden. De ældre scripts (`tools/generate_data.py`, `add_older_elections.py`, `add_all_elections.py`) laver de gamle opdigtede tal og bruges ikke længere.
 
 ## Begrænsninger
 
@@ -223,14 +225,15 @@ Forslag til succeskriterier: T1 inden for 30 sekunder uden hjælp; T2 når ekspo
 index.html            skal + hovednavigation
 css/style.css         design (farver som CSS-variabler øverst)
 js/app.js             alle skærme, routing, søgeforslag, diagrammer, eksport
-js/data.js            eksempeldata (genereret; 2017 og 2013 tilføjet af tools/add_older_elections.py)
+js/data.js            valgdata (genereret af tools/officielle_tal.py ud fra tools/kilder/)
 js/test-mode.js       testpanel (kun med ?test=1)
 js/app-c.js           version C (valgaften, kredse, kandidater) og fælles datalag for C og D
 js/app-d.js           version D (Sætningen, Storskærm)
 css/style-c.css       version C
 css/style-d.css       version D (gælder kun under body[data-ver="d"])
 fonts/                skrifttyper til version D (licens: fonts/LICENSES.md)
-tools/generate_data.py  genererer eksempeldata
+tools/officielle_tal.py  bygger js/data.js ud fra Danmarks Statistik (tools/kilder/)
+tools/generate_data.py  gammelt script med opdigtede tal (bruges ikke)
 tools/add_older_elections.py  tilføjer Kommunalvalg 2017 og 2013
 .nojekyll             så GitHub Pages serverer filerne uændret
 ```

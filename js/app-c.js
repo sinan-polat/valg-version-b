@@ -1,6 +1,6 @@
 /* Version C – nyt design: valgaften (live), kredse og kandidater, ny header og burgermenu.
    Indlæses før app.js; app.js kalder VX.init(), når fælles hjælpere (window.VH) er klar.
-   ALLE tal og ALLE kandidatnavne er EKSEMPELDATA / fiktive (se tools/generate_data.py og tools/generate_kandidater.py). */
+   Valgtal pr. kommune er officielle (tools/officielle_tal.py); kandidatnavne, kredse og afstemningsområder er fiktive (tools/generate_kandidater.py). */
 (function () {
   'use strict';
   window.VX = { init };
@@ -263,7 +263,7 @@
         liveBox.innerHTML = ''; const total = KOM.length;
         if (!LIVE.on && hv === 'fv') return;
         if (!LIVE.on) {
-          liveBox.append(h('div', { class: 'livebar idle' }, h('span', { class: 'lb-tag done' }, 'Endeligt'), h('span', { class: 'lb-text' }, hv === KV ? `${total} af ${total} kommuner optalt` : 'Eksempeldata'), h('span', { class: 'spacer' }),
+          liveBox.append(h('div', { class: 'livebar idle' }, h('span', { class: 'lb-tag done' }, 'Endeligt'), h('span', { class: 'lb-text' }, hv === KV ? `${total} af ${total} kommuner optalt` : 'Danmarks Statistik'), h('span', { class: 'spacer' }),
             h('button', { class: 'btn small secondary', type: 'button', onclick: () => { hv = KV; live.start(); } }, '▶ Se valgaften live (simulation)')));
           return;
         }
@@ -311,7 +311,7 @@
         const isFV = hv === 'fv', metric = isFV ? 'party' : mapMetric;
         const opts = { valg: KV, metric, counted: isFV ? null : isCounted, onSelect: id => { log('map', id); if (isFV) location.hash = '#/kreds/' + komToKreds[id][0]; else setFoc(id, 'mand'); } };
         if (!isFV) opts.onRegion = rid => { log('map', rid); location.hash = resultHref(rid, KV); };
-        if (isFV) { opts.fillOf = k => D.parties[fvBig[k.id]].color; opts.titleOf = k => `${k.name} – største parti (eksempel): ${fvBig[k.id]} ${PN(fvBig[k.id])}`; }
+        if (isFV) { opts.fillOf = k => D.parties[fvBig[k.id]].color; opts.titleOf = k => `${k.name} – største parti: ${fvBig[k.id]} ${PN(fvBig[k.id])}`; }
         else if (metric === 'party') opts.titleOf = k => isCounted(k.id) ? `${k.name} – største parti ${H.biggest(k, KV)} ${PN(H.biggest(k, KV))}` : `${k.name} – optælles stadig`;
         const cnt = {}; let pend = 0;
         KOM.forEach(k => { if (!isFV && !isCounted(k.id)) { pend++; return; } const p = isFV ? fvBig[k.id] : H.biggest(k, KV); cnt[p] = (cnt[p] || 0) + 1; });
@@ -334,7 +334,7 @@
       const tabBar = h('div', { class: 'ft-tabs', role: 'tablist', 'aria-label': 'Vis' });
       const vseg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Vælg valg' });
       function drawAll() {
-        eyebrow.textContent = focK() ? 'Din kommune · ' + (LIVE.on && LIVE.n < KOM.length ? 'foreløbigt' : 'Kommunalvalg 2025') : hv === KV ? (LIVE.on ? (LIVE.n >= KOM.length ? 'Simulation slut' : 'Foreløbigt resultat') : ELS[KV].date) : 'Eksempeldata';
+        eyebrow.textContent = focK() ? 'Din kommune · ' + (LIVE.on && LIVE.n < KOM.length ? 'foreløbigt' : 'Kommunalvalg 2025') : hv === KV ? (LIVE.on ? (LIVE.n >= KOM.length ? 'Simulation slut' : 'Foreløbigt resultat') : ELS[KV].date) : 'Danmarks Statistik';
         title.textContent = focK() ? focK().name + ' Kommune' : vname(hv);
         backBtn.hidden = !focK();
         vseg.innerHTML = ''; [[KV, 'Kommunalvalg'], ['fv', 'Folketingsvalg']].forEach(([id, t]) => vseg.append(h('button', { type: 'button', 'aria-pressed': String(hv === id), onclick: () => { hv = id; drawAll(); } }, t)));
@@ -453,7 +453,7 @@
         h('button', { class: 'btn secondary small', type: 'button', onclick: () => nodes.forEach(n => n.setOpen(true)) }, 'Udfold alle'), h('button', { class: 'btn secondary small', type: 'button', onclick: () => { nodes.forEach(n => { n.setOpen(false); n.querySelectorAll('.tn').forEach(c => c.setOpen(false)); }); } }, 'Fold ind')), info);
       tree = h('div', { class: 'tree' }, nodes); el.append(tree);
       if (q['åbn']) { const nd = nodes.find(n => n.dataset.rid === q['åbn']); if (nd) nd.setOpen(true); }
-      el.append(h('p', { class: 'source' }, 'Kilde: eksempeldata og fiktive navne i prototypen – ikke officielle valgresultater og ikke rigtige personer.' + (valg === 'fv' ? ' Inddelingen i opstillingskredse er forenklet.' : '')));
+      el.append(h('p', { class: 'source' }, 'Kilde: Danmarks Statistik (stemmer pr. kommune). Kandidatnavne er fiktive og ikke rigtige personer.' + (valg === 'fv' ? ' Inddelingen i opstillingskredse er forenklet.' : '')));
       return el;
     }
 
@@ -466,7 +466,7 @@
       const m = {}; Object.keys(sk.mandates).forEach(p => { m[p] = sk.mandates[p]; }); Object.keys(sk.tillaeg).forEach(p => { m[p] = (m[p] || 0) + sk.tillaeg[p]; });
       const mrows = Object.keys(m).map(p => ({ p, m: m[p] })).sort((a, b) => b.m - a.m);
       const el = h('div', { class: 'page wrap' }, crumb({ t: 'Forside', href: '#/' }, { t: 'Kandidater og kredse', href: href('/kredse', { valg: 'fv' }) }, { t: sk.name }));
-      el.append(h('div', { class: 'titlerow' }, h('h1', {}, sk.name), h('span', { class: 'badge' }, 'Eksempeldata')), h('p', { class: 'lead' }, `${FV.name} · ${krs.length} ${krs.length === 1 ? 'opstillingskreds' : 'opstillingskredse'}`));
+      el.append(h('div', { class: 'titlerow' }, h('h1', {}, sk.name), h('span', { class: 'badge' }, 'Fiktive kandidater')), h('p', { class: 'lead' }, `${FV.name} · ${krs.length} ${krs.length === 1 ? 'opstillingskreds' : 'opstillingskredse'}`));
       el.append(kpi([['Valgte i alt', fmtN(mrows.reduce((t, r) => t + r.m, 0)), true], ['Kredsmandater', String(sk.seats)], ['Tillægsmandater i storkredsen', String(tl)], ['Valgdeltagelse', fmtP(turnoutOf(krs))]]));
       el.append(h('section', { class: 'section' }, h('h2', {}, 'Mandatfordeling'), h('div', { class: 'panel', style: 'margin-top:14px' }, mbar(mrows), legendRows(m, null, p => `${sk.mandates[p] || 0} kreds + ${sk.tillaeg[p] || 0} tillæg`))));
       const elected = allFV.filter(c => c.sk === sk.id && c.elected).sort((a, b) => POL.indexOf(a.p) - POL.indexOf(b.p) || b.votes - a.votes);
@@ -474,7 +474,7 @@
       el.append(h('section', { class: 'section' }, h('h2', { style: 'margin-bottom:14px' }, 'Opstillingskredse'), h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('caption', { class: 'sr-only' }, 'Opstillingskredse i ' + sk.name),
         h('thead', {}, h('tr', {}, ['Opstillingskreds', 'Valgberettigede', 'Valgdeltagelse', 'Største parti', 'Valgte'].map((t, i) => h('th', { scope: 'col', class: i === 1 || i === 2 ? 'num' : '' }, t)))),
         h('tbody', {}, krs.map(k => { const t = bigOfVotes(k.votes); return h('tr', {}, h('td', {}, h('a', { href: '#/kreds/' + k.id }, k.name)), h('td', { class: 'num' }, fmtN(k.electorate)), h('td', { class: 'num' }, fmtP(k.turnout)), h('td', {}, pl(t, 'sm'), PN(t)), h('td', {}, String(Object.values(k.c).filter(c => c[2]).length))); }))))));
-      el.append(h('p', { class: 'source' }, 'Kilde: eksempeldata og fiktive navne i prototypen. ', h('a', { href: '#/metode' }, 'Sådan er mandaterne beregnet')));
+      el.append(h('p', { class: 'source' }, 'Kilde: stemmer fra Danmarks Statistik fordelt på forenklede kredse; kandidatnavne er fiktive. ', h('a', { href: '#/metode' }, 'Sådan er mandaterne beregnet')));
       return el;
     }
     /* ---------- opstillingskreds ---------- */
@@ -488,14 +488,14 @@
       const sel = h('select', { class: 'select', id: 'ks', 'aria-label': 'Sortér' }, [['v', 'Flest stemmer'], ['a', 'Partibogstav'], ['n', 'Kandidatnavn']].map(([v, t]) => h('option', { value: v }, t)));
       sel.addEventListener('change', () => { sort = sel.value; log('sort', sort); draw(); }); draw();
       const el = h('div', { class: 'page wrap' }, crumb({ t: 'Forside', href: '#/' }, { t: 'Kandidater og kredse', href: href('/kredse', { valg: 'fv' }) }, { t: sk.name, href: '#/storkreds/' + sk.id }, { t: kr.name }));
-      el.append(h('div', { class: 'titlerow' }, h('h1', {}, kr.name), h('span', { class: 'badge' }, 'Eksempeldata')), h('p', { class: 'lead' }, `Opstillingskreds i ${sk.name} · ${FV.name}` + (kr.kom.length ? ' · ' + kr.kom.map(id => byId[id].name).join(', ') : '')));
+      el.append(h('div', { class: 'titlerow' }, h('h1', {}, kr.name), h('span', { class: 'badge' }, 'Fiktive kandidater')), h('p', { class: 'lead' }, `Opstillingskreds i ${sk.name} · ${FV.name}` + (kr.kom.length ? ' · ' + kr.kom.map(id => byId[id].name).join(', ') : '')));
       const top = bigOfVotes(kr.votes);
       el.append(kpi([['Valgdeltagelse', fmtP(kr.turnout), true], ['Valgberettigede', fmtN(kr.electorate)], ['Afgivne stemmer', fmtN(kr.cast)], ['Største parti', top + ' ' + PN(top)]]));
       el.append(h('div', { class: 'toolbar' }, h('h2', { style: 'font-size:22px' }, 'Kandidater og stemmer'), h('span', { class: 'spacer' }), h('label', { for: 'ks', style: 'color:var(--muted);font-size:14px' }, 'Sortér efter'), sel,
         h('button', { class: 'btn secondary small', type: 'button', onclick: () => download(`kandidater-${kr.id}.csv`, csv(['Opstillingskreds', 'Storkreds', 'Parti', 'Kandidat', 'Personlige stemmer', 'Partiets stemmer', 'Andel (%)', 'Status'], rows0.map(r => [kr.name, sk.name, r.p, r.name, r.pv, r.pt, +r.sh.toFixed(2), r.st === 1 ? 'Kredsmandat' : r.st === 2 ? 'Tillægsmandat' : 'Ikke valgt']), { sep: ';', dec: ',' })) }, '⬇ Hent til Excel'), shareBtn(), printBtn()));
       el.append(h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('caption', { class: 'sr-only' }, 'Kandidater og stemmer i ' + kr.name),
         h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Parti'), h('th', { scope: 'col' }, 'Kandidat'), h('th', { scope: 'col', class: 'num' }, 'Personlige stemmer'), h('th', { scope: 'col', class: 'num' }, 'Partiets stemmer'), h('th', { scope: 'col', class: 'num' }, 'Andel'), h('th', { scope: 'col' }, 'Status'))), tbody)));
-      el.append(h('p', { class: 'source' }, 'Mandater fordeles på storkredsniveau, ikke i den enkelte opstillingskreds. Kilde: eksempeldata og fiktive navne i prototypen.'));
+      el.append(h('p', { class: 'source' }, 'Mandater fordeles på storkredsniveau, ikke i den enkelte opstillingskreds. Kilde: stemmer fra Danmarks Statistik fordelt på forenklede kredse; kandidatnavne er fiktive.'));
       return el;
     }
     /* ---------- kandidat ---------- */
@@ -549,7 +549,7 @@
         h('button', { class: 'btn secondary small', type: 'button', onclick: () => download(`valgte-${valg}.csv`, csv(['Valg', 'Parti', 'Kandidat', valg === 'fv' ? 'Opstillingskreds' : 'Kommune', valg === 'fv' ? 'Storkreds' : 'Region', 'Personlige stemmer', 'Status'], filtered().map(c => [vname(valg), c.p, c.name, c.t === 'kv' ? c.komName : c.kredsName, c.t === 'kv' ? c.region : c.skName, c.votes, statusTxt(c)]), { sep: ';', dec: ',' })) }, '⬇ Hent til Excel'), shareBtn()));
       el.append(count, h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('caption', { class: 'sr-only' }, 'Valgte kandidater'),
         h('thead', {}, h('tr', {}, ['Parti', 'Kandidat', valg === 'fv' ? 'Opstillingskreds' : 'Kommune', 'Personlige stemmer', 'Status'].map((t, i) => h('th', { scope: 'col', class: i === 3 ? 'num' : '' }, t)))), tbody)), h('div', { style: 'text-align:center;margin-top:10px' }, more));
-      el.append(h('p', { class: 'source' }, 'Kilde: eksempeldata og fiktive navne i prototypen – ikke officielle valgresultater.'));
+      el.append(h('p', { class: 'source' }, 'Kilde: Danmarks Statistik (stemmer pr. kommune). Kandidatnavne er fiktive.'));
       draw();
       return el;
     }
@@ -559,13 +559,13 @@
       document.title = 'Sådan fordeles mandaterne – valg.dk (prototype)';
       const el = h('div', { class: 'page wrap' }, crumb({ t: 'Forside', href: '#/' }, { t: 'Sådan fordeles mandaterne' }));
       el.append(h('h1', {}, 'Hvad er mandatfordeling, og hvem er valgt ind?'),
-        h('p', { class: 'protonote', role: 'note' }, 'Forklaringen er skrevet til prototypen for at vise, hvor et enkelt svar kan stå. Den er ikke gengivet fra den officielle valg.dk og skal kontrolleres mod officielle kilder, før den bruges andre steder. Beregningerne i prototypen er forenklede og bruger eksempeldata.'),
+        h('p', { class: 'protonote', role: 'note' }, 'Forklaringen er skrevet til prototypen for at vise, hvor et enkelt svar kan stå. Den er ikke gengivet fra den officielle valg.dk og skal kontrolleres mod officielle kilder, før den bruges andre steder. Beregningerne i prototypen er forenklede; stemmetallene er Danmarks Statistiks.'),
         h('div', { class: 'prose' },
           h('h2', {}, 'Kort fortalt'), h('p', {}, 'Et mandat er en plads i byrådet eller i Folketinget. Mandatfordelingen viser, hvor mange pladser hvert parti har fået. Hvem der sidder på partiets pladser, afgøres af, hvem der fik flest personlige stemmer.'),
           h('h2', {}, 'Kommunalvalg'), h('p', {}, 'Hver kommune har sit eget byråd med et fast antal mandater. Partiernes stemmer omregnes til mandater (i prototypen med d’Hondt-metoden). De kandidater på partiets liste, der fik flest personlige stemmer, bliver valgt.'),
           h('h2', {}, 'Folketingsvalg'), h('p', {}, 'Folketinget har 175 mandater i Danmark. 135 er kredsmandater, som fordeles på de 10 storkredse. De sidste 40 er tillægsmandater, som udjævner forskellen mellem partiernes stemmeandel og deres mandater på landsplan. Et parti skal normalt nå 2 % af stemmerne for at få tillægsmandater. Valgte personer er dem med flest personlige stemmer på partiets liste.'),
           h('h2', {}, 'Det her er forenklet i prototypen'),
-          h('ul', {}, h('li', {}, 'Tillægsmandater er fordelt med en enkel udjævning og ikke efter de officielle regler.'), h('li', {}, 'Opstillingskredse er en forenklet inddeling. Hver kreds har én kandidat pr. parti.'), h('li', {}, 'Alle navne er fiktive, og alle tal er eksempeldata.')),
+          h('ul', {}, h('li', {}, 'Tillægsmandater er fordelt med en enkel udjævning og ikke efter de officielle regler.'), h('li', {}, 'Opstillingskredse er en forenklet inddeling. Hver kreds har én kandidat pr. parti.'), h('li', {}, 'Alle kandidatnavne er fiktive; stemmetallene er Danmarks Statistiks, fordelt på forenklede kredse.')),
           h('p', {}, h('a', { href: href('/valgt', { valg: KV }) }, 'Se hvem der er valgt ind  →'))));
       return el;
     }
@@ -574,7 +574,7 @@
     function kommuneExtras(k, valg) {
       const wrap = h('div');
       if (valg !== KV) { wrap.append(h('p', { class: 'protonote', role: 'note', style: 'margin-top:36px' }, 'Kandidater er kun med for ' + ELS[KV].name + ' i prototypen.')); return wrap; }
-      if (LIVE.on && !isCounted(k.id)) wrap.append(h('p', { class: 'protonote', role: 'status', style: 'margin-top:30px' }, `Valgaftens-simulation: ${k.short} er ikke optalt endnu. Tallene på siden er de endelige eksempeldata.`));
+      if (LIVE.on && !isCounted(k.id)) wrap.append(h('p', { class: 'protonote', role: 'status', style: 'margin-top:30px' }, `Valgaftens-simulation: ${k.short} er ikke optalt endnu. Tallene på siden er de endelige resultater.`));
       const R = k.results[KV], lists = K.kv2025[k.id] || {};
       const parties = Object.keys(lists).sort((a, b) => (R.mandates[b] || 0) - (R.mandates[a] || 0) || R.votes[b] - R.votes[a]);
       const withM = parties.filter(p => R.mandates[p] > 0);
@@ -601,7 +601,7 @@
         h('div', { class: 'valgte-grid' }, withM.map(p => h('div', { class: 'vg', style: `border-top-color:${D.parties[p].color}` }, h('p', { class: 'vg-h' }, pl(p), h('strong', {}, PN(p)), h('small', {}, `${R.mandates[p]} ${R.mandates[p] === 1 ? 'mandat' : 'mandater'}`)),
           h('ul', {}, lists[p].slice(0, R.mandates[p]).map((c, i) => h('li', {}, h('a', { href: `#/kandidat/kv/${k.id}/${enc(p)}/${i}` }, c[0]), h('small', {}, fmtN(c[1]))))))))),
       h('section', { class: 'section', 'aria-labelledby': 'h-allek' }, h('div', { class: 'toolbar', style: 'margin-top:0' }, h('h2', { id: 'h-allek', style: 'font-size:22px' }, 'Alle kandidater'), h('span', { class: 'spacer' }), inp), groups,
-        h('p', { class: 'source' }, 'Kilde: eksempeldata og fiktive navne i prototypen – ikke officielle valgresultater og ikke rigtige personer.')));
+        h('p', { class: 'source' }, 'Kilde: Danmarks Statistik (stemmer pr. kommune). Kandidatnavne er fiktive og ikke rigtige personer.')));
       return wrap;
     }
 

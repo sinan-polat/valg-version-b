@@ -1,5 +1,5 @@
 /* Valg.dk – prototype til bachelorprojekt. Ren HTML/CSS/JS, ingen afhængigheder.
-   Alle tal er EKSEMPELDATA (se tools/generate_data.py). Routing sker via #-adresser. */
+   Valgtal pr. kommune er officielle (Danmarks Statistik, se tools/officielle_tal.py); afstemningsområder er opdigtede. Routing sker via #-adresser. */
 (function () {
   'use strict';
   const D = window.DATA;
@@ -199,7 +199,7 @@
       c.drawImage(img, (cw - W * k) / 2, top);
       c.fillStyle = '#5B6877'; c.font = `${13 * k}px ${font}`;
       if (note) c.fillText(note, pad, cv.height - 46 * k);
-      c.fillText('Kilde: eksempeldata i prototypen til bachelorprojekt – ikke officielle valgresultater.', pad, cv.height - 20 * k);
+      c.fillText('Kilde: Danmarks Statistik. Prototype til bachelorprojekt – ikke den officielle Valg.dk.', pad, cv.height - 20 * k);
       cv.toBlob(b => { const a = h('a', { href: URL.createObjectURL(b), download: fname }); document.body.append(a); a.click(); a.remove(); log('export', fname); URL.revokeObjectURL(url); }, 'image/png');
     };
     img.src = url;
@@ -247,7 +247,7 @@
       h('button', { class: 'btn secondary small', type: 'button', onclick: () => download(fname('.csv'), csv(exHead, exRows(), { sep: ';', dec: ',' })) }, '⬇ Hent til Excel')));
     el.append(h('div', { class: 'tbl-wrap', style: 'max-height:600px;overflow:auto' }, h('table', { class: 'tbl' }, h('caption', { class: 'sr-only' }, `${P.name} i kommunerne`),
       h('thead', {}, h('tr', {}, ['Kommune', 'Stemmer', 'Andel', 'Mandater'].map((t, i) => h('th', { scope: 'col', class: i ? 'num' : '' }, t)))), tbody)));
-    el.append(h('p', { class: 'source' }, 'Kilde: eksempeldata i prototypen – ikke officielle valgresultater. Søgning på kandidater er ikke med i prototypen.'));
+    el.append(h('p', { class: 'source' }, 'Kilde: Danmarks Statistik. Søgning på kandidater er ikke med i prototypen.'));
     return el;
   }
 
@@ -319,7 +319,7 @@
     return h('div', { class: 'mapcard' },
       h('div', { class: 'head' }, h('h3', {}, title), h('div', { class: 'seg', role: 'group', 'aria-label': 'Vis på kortet' }, bT, bP)),
       holder, lg, h('div', { class: 'noprint', style: 'margin-top:12px' }, pngBtn(() => ({ svg: holder.querySelector('svg'), title: (title || 'Kort') + ' – ' + (metric === 'turnout' ? 'valgdeltagelse' : 'største parti') + ' (' + ELS[valg].name + ')', legend: [...lg.querySelectorAll('.lg-col')[0].querySelectorAll('span')].map(sp => ({ name: sp.textContent.trim(), color: sp.querySelector('i').style.backgroundColor })), fname: 'kort-' + (region || 'danmark') + '-' + valg + '.png', note: 'Hver cirkel er en kommune. Cirklens areal viser antal valgberettigede. Skematisk kort.' }))),
-      h('p', { class: 'mapnote' }, 'Skematisk kort med eksempeldata. Hver cirkel er en kommune – cirklens areal viser antal valgberettigede, så store kommuner som København fylder mere. Klik på en cirkel eller region for at se resultatet.'));
+      h('p', { class: 'mapnote' }, 'Skematisk kort. Hver cirkel er en kommune – cirklens areal viser antal valgberettigede, så store kommuner som København fylder mere. Klik på en cirkel eller region for at se resultatet.'));
   }
 
   function accordion(linkFor) {
@@ -426,7 +426,7 @@
       h('div', { class: 'hero' }, h('div', {}, h('p', { class: 'eyebrow' }, 'Officielle valgresultater i Danmark'), h('h1', {}, 'Velkommen til valg.dk'),
         h('p', { class: 'lead' }, 'Her kan du finde valgresultater for igangværende og tidligere valg.'), h('div', { style: 'margin-top:28px;max-width:640px' }, heroSearch()))),
       h('section', { class: 'section', 'aria-labelledby': 'h-stat' }, h('div', { style: 'display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px' }, h('h2', { id: 'h-stat' }, 'Valgresultater'), h('div', {}, h('label', { for: 'pickV', class: 'sr-only' }, 'Vælg valg'), vsel)),
-        h('div', { class: 'mapsec' }, h('div', { class: 'mapcard' }, h('div', { class: 'head' }, title), mapHold, lgHold, h('p', { class: 'mapnote' }, 'Klik på din kommune for at se resultatet og derefter afstemningsområderne. Skematisk kort med eksempeldata.')), h('div', { class: 'statuscard' }, statusHold))),
+        h('div', { class: 'mapsec' }, h('div', { class: 'mapcard' }, h('div', { class: 'head' }, title), mapHold, lgHold, h('p', { class: 'mapnote' }, 'Klik på din kommune for at se resultatet og derefter afstemningsområderne. Skematisk kort.')), h('div', { class: 'statuscard' }, statusHold))),
       h('section', { class: 'section', 'aria-labelledby': 'h-vt' }, h('h2', { id: 'h-vt', style: 'margin-bottom:18px' }, 'Vælg valg'), accordion(id => href('/valg/' + id))));
   }
   function valgList() {
@@ -509,7 +509,7 @@
   }
 
 
-  /* ---------- afstemningsområder (eksempeldata) ---------- */
+  /* ---------- afstemningsområder (opdigtede, summerer til kommunens officielle tal) ---------- */
   const dDelta = (v, unit, dec) => { const a = Math.abs(v).toLocaleString('da-DK', { minimumFractionDigits: dec, maximumFractionDigits: dec }); const z = Math.abs(v) < Math.pow(10, -dec) / 2; return h('span', { class: 'delta ' + (z ? 'zero' : v > 0 ? 'up' : 'down'), 'aria-label': z ? 'uændret' : (v > 0 ? 'op ' : 'ned ') + a + unit }, z ? '0' + unit : (v > 0 ? '▲ +' : '▼ −') + a + unit); };
   function areaStats(a, prevA) {
     const votes = Object.keys(a.votes), top = votes.reduce((x, y) => a.votes[y] > a.votes[x] ? y : x);
@@ -566,7 +566,7 @@
         h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Parti'), h('th', { scope: 'col', class: 'num' }, 'Stemmer'), h('th', { scope: 'col', class: 'num' }, 'Andel'), pa ? h('th', { scope: 'col', class: 'num' }, 'Ændring andel') : null)),
         h('tbody', {}, rows.map(r => h('tr', { class: 'row' }, h('td', {}, h('span', { class: 'pletter', style: `background:${r.color}`, 'aria-hidden': 'true' }, r.p), r.name),
           h('td', { class: 'num' }, fmtN(r.v), pa ? h('small', { class: 'dsub' }, sgn(r.dv) + ' stemmer') : null), h('td', { class: 'num' }, fmtP(r.sh)), pa ? h('td', { class: 'num' }, dDelta(r.ds, ' %-p', 1)) : null))))),
-      h('p', { class: 'source' }, 'Mandater fordeles på kommuneniveau og vises derfor ikke for det enkelte afstemningsområde. Kilde: eksempeldata i prototypen – ikke officielle valgresultater.'),
+      h('p', { class: 'source' }, 'Mandater fordeles på kommuneniveau og vises derfor ikke for det enkelte afstemningsområde. Kilde: Danmarks Statistik (stemmer pr. kommune); afstemningsområderne er opdigtede.'),
       h('div', { class: 'pills', style: 'margin-top:22px' }, h('a', { class: 'pill', href: resultHref(k.id, valg) }, '← Hele ' + k.label), nb.map(x => h('a', { class: 'pill', href: href('/resultat/' + k.id + '/' + x.id, { valg }) }, x.name.replace(k.name + ' ', '')))));
   }
 
@@ -657,7 +657,7 @@
       el.append(h('div', { class: 'panel tint section cta' }, h('div', {}, h('h2', { style: 'font-size:22px' }, 'Vil du sammenligne med en anden kommune?'), h('p', { style: 'color:var(--muted);margin-top:6px' }, 'Sæt områder side om side i et diagram.')),
         h('a', { class: 'btn', href: href('/sammenlign', { a: k.id, valg }) }, 'Sammenlign områder  →')));
     }
-    el.append(h('p', { class: 'source' }, 'Kilde: eksempeldata i prototypen – ikke officielle valgresultater.'));
+    el.append(h('p', { class: 'source' }, 'Kilde: Danmarks Statistik (stemmer pr. kommune); afstemningsområderne er opdigtede.'));
     return el;
   }
 
@@ -901,7 +901,7 @@
     const el = h('div', { class: 'page wrap' });
     el.append(crumb({ t: 'Forside', href: '#/' }, { t: 'Sammenlign', href: href('/sammenlign', { a: ids[0], b: ids[1], c: ids[2], valg, maal }) }, { t: 'Resultat' }));
     el.append(h('h1', {}, title));
-    el.append(h('p', { class: 'lead' }, `${ELS[valg].name} · ${MAAL[maal]} · Eksempeldata`));
+    el.append(h('p', { class: 'lead' }, `${ELS[valg].name} · ${MAAL[maal]} · Danmarks Statistik`));
     const links = (mk, cur, entries, paramName) => h('div', { class: 'pills', style: 'margin-top:18px' }, entries.map(([id, t, dis]) => dis ? h('span', { class: 'pill', 'aria-disabled': 'true', title: 'Kræver et tidligere valg' }, t) : h('a', { class: 'pill' + (id === cur ? ' active' : ''), 'aria-current': id === cur ? 'true' : null, href: href('/sammenlign/resultat', Object.assign({ a: ids[0], b: ids[1], c: ids[2], valg, maal }, { [paramName]: id })) }, t)));
     el.append(links(null, valg, elsOfType(typeOf(valg)).map(id => [id, ELS[id].name]), 'valg'));
     el.append(links(null, maal, Object.entries(MAAL).map(([id, t]) => [id, t, id === 'aendring' && !ELS[valg].prev]), 'maal'));
@@ -920,7 +920,7 @@
       h('button', { class: 'btn small', type: 'button', onclick: () => download(fname('.csv'), csv(head, rows, { sep: ';', dec: ',' })) }, '⬇ Hent som Excel'),
       h('button', { class: 'btn secondary small', type: 'button', onclick: () => download(fname('-data.csv'), csv(head, rows, { sep: ',', dec: '.' })) }, '⬇ CSV (UTF-8)'), pngBtn(() => ({ svg: chartPanel.querySelector('svg'), title: title + ' – ' + MAAL[maal] + ' (' + ELS[valg].name + ')', legend: series.map(se => ({ name: se.name, color: se.color })), fname: fname('.png') })), shareBtn(), printBtn()));
     el.append(chartPanel, tablePanel);
-    el.append(h('p', { class: 'source' }, 'Kilde: eksempeldata i prototypen – ikke officielle valgresultater. ', h('a', { href: href('/sammenlign', { a: ids[0], b: ids[1], c: ids[2], valg, maal }) }, 'Skift områder eller valg'), ' · ', h('a', { href: '#/data' }, 'Skal du hente tal for flere områder? Gå til Hent data')));
+    el.append(h('p', { class: 'source' }, 'Kilde: Danmarks Statistik (stemmer pr. kommune); afstemningsområderne er opdigtede. ', h('a', { href: href('/sammenlign', { a: ids[0], b: ids[1], c: ids[2], valg, maal }) }, 'Skift områder eller valg'), ' · ', h('a', { href: '#/data' }, 'Skal du hente tal for flere områder? Gå til Hent data')));
     return el;
   }
 

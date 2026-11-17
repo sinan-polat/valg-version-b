@@ -2,10 +2,10 @@
 """
 Genererer EKSEMPELDATA til kandidater, storkredse og opstillingskredse (js/kandidater.js).
 
-ALT er opdigtet:
+Kandidater og kredse er opdigtede:
   * kandidatnavne er fiktive (tilfældige kombinationer – ingen kobling til rigtige personer),
-  * tal for "Folketingsvalg (eksempel)" er genereret og ligner IKKE et rigtigt valgresultat,
-  * mandatfordelingen er en FORENKLET d'Hondt-beregning (se METODE nedenfor), ikke de officielle regler.
+  * stemmerne til Folketingsvalg 2026 er de officielle kommunetal (Danmarks Statistik), fordelt på forenklede opstillingskredse,
+  * landets mandater er de officielle; fordelingen på storkredse og kandidater er FORENKLET (d'Hondt), ikke de officielle regler.
 
 Kommunalvalg 2025: hver kommune får kandidater pr. parti med personlige stemmer; de øverste (= partiets mandater) er valgt.
 Folketingsvalg (eksempel): 10 storkredse, ca. 90 opstillingskredse, 135 kredsmandater + 40 tillægsmandater = 175.
@@ -132,7 +132,7 @@ DIRS = ["Nord", "Syd", "Øst", "Vest", "Midt", "Nordvest", "Sydvest", "Nordøst"
 FV_BASE = {"A": 26.0, "V": 12.5, "M": 9.0, "Æ": 8.0, "I": 8.0, "C": 6.0, "F": 8.5, "Ø": 5.5, "B": 4.0, "D": 3.6, "O": 3.0, "Å": 3.0, "K": 1.1}
 MERGE_LIMIT = 34000      # kommuner med færre valgberettigede kan slås sammen til én opstillingskreds
 MERGE_DIST = 0.6        # maks. afstand (grader) mellem to kommuner, der slås sammen
-POL_ORDER = ["Ø", "Å", "F", "A", "B", "M", "K", "C", "V", "I", "Æ", "D", "O"]
+POL_ORDER = ["Ø", "Å", "F", "A", "B", "M", "K", "C", "V", "I", "Æ", "D", "H", "O", "L"]
 
 
 def build_kredse():
@@ -171,35 +171,33 @@ def fv():
     namer = Namer("fv")
     kredse = build_kredse()
     out_k = []
+    # runde 10: kredsenes stemmer er de OFFICIELLE kommunetal fra folketingsvalget 2026 (Danmarks Statistik, FVKOM),
+    # fordelt på de forenklede opstillingskredse. Kandidatnavnene er stadig fiktive.
+    byid = {x["id"]: x for x in D["kommuner"]}
+    parts = {}  # kommune -> liste af (kreds, andel)
+    for kr in kredse:
+        for kid, sh in zip(kr["kom"], kr["share"]):
+            parts.setdefault(kid, []).append((kr["id"], sh))
+    kv = {kr["id"]: {"electorate": 0, "cast": 0, "valid": 0, "votes": {}} for kr in kredse}
+    for kid, lst in parts.items():
+        R = byid[kid]["results"]["fv"]
+        w = [sh for _, sh in lst]
+        for f in ("electorate", "cast", "valid"):
+            for (kid2, _), x in zip(lst, alloc(R[f], w)):
+                kv[kid2][f] += x
+        for p, n in R["votes"].items():
+            for (kid2, _), x in zip(lst, alloc(n, w)):
+                if x:
+                    kv[kid2]["votes"][p] = kv[kid2]["votes"].get(p, 0) + x
     for kr in kredse:
         r = rng(kr["id"], "fv")
-        elec = 0
-        tilt = {p: 0.0 for p in FV_BASE}
-        w = 0
-        for kid, sh in zip(kr["kom"], kr["share"]):
-            R = D["kommuner"][[x["id"] for x in D["kommuner"]].index(kid)]["results"]["kv2025"]
-            e = R["electorate"] * sh
-            elec += e
-            for p in FV_BASE:
-                tilt[p] += (R["votes"].get(p, 0) / R["valid"] * 100 if p in R["votes"] else FV_BASE[p]) * e
-            w += e
-        shares = {}
-        for p in FV_BASE:
-            local = tilt[p] / w
-            mix = 0.55 * FV_BASE[p] + 0.45 * local
-            shares[p] = max(0.3, mix * math.exp(r.gauss(0, 0.18)))
-        tot = sum(shares.values())
-        turnout = round(max(76.0, min(91.0, r.gauss(84.2, 2.8))), 1)
-        elec = round(elec * 0.96)  # færre vælgere ved folketingsvalg end ved kommunalvalg (eksempel)
-        cast = round(elec * turnout / 100)
-        valid = round(cast * 0.993)
-        votes = {p: max(1, round(valid * s / tot)) for p, s in shares.items()}
-        votes[max(votes, key=votes.get)] += valid - sum(votes.values())
+        K = kv[kr["id"]]
+        votes = K["votes"]
         cands = {}
         for p, v in votes.items():
-            share = r.uniform(0.5, 0.82)
-            cands[p] = [namer.next(), int(v * share)]
-        out_k.append({"id": kr["id"], "name": kr["name"], "sk": kr["sk"], "kom": kr["kom"], "electorate": elec, "cast": cast, "valid": valid, "turnout": turnout, "votes": votes, "c": cands})
+            cands[p] = [namer.next(), int(v * r.uniform(0.5, 0.82))]
+        out_k.append({"id": kr["id"], "name": kr["name"], "sk": kr["sk"], "kom": kr["kom"], "electorate": K["electorate"], "cast": K["cast"], "valid": K["valid"],
+                      "turnout": round(K["cast"] / K["electorate"] * 100, 1), "votes": votes, "c": cands})
 
     # kredsmandater pr. storkreds (135 i alt; Bornholm = 2)
     sk_elec = {sk: sum(k["electorate"] for k in out_k if k["sk"] == sk) for sk, _ in STORKREDSE}
@@ -207,10 +205,10 @@ def fv():
     seats = dict(zip(others, alloc(133, [sk_elec[s] for s in others])))
     seats["bornholm"] = 2
     # nationale stemmer og 2 %-spærregrænse (forenklet)
-    nat = {p: sum(k["votes"].get(p, 0) for k in out_k) for p in FV_BASE}
-    valid_tot = sum(nat.values())
-    qual = {p: v for p, v in nat.items() if v / valid_tot >= 0.02}
-    target = dhondt(qual, 175)
+    allp = sorted({p for k in out_k for p in k["votes"]})
+    nat = {p: sum(k["votes"].get(p, 0) for k in out_k) for p in allp}
+    target = dict(D["elections"]["fv"]["seatsBy"]["land"])  # officielle mandater
+    qual = {p: nat[p] for p in target}
     elected = {}   # (kreds_id, parti) -> 1 kreds / 2 tillæg
     kreds_seats = {p: 0 for p in nat}
     sk_man = {}
@@ -224,6 +222,13 @@ def fv():
             for k in best:
                 elected[(k["id"], p)] = 1
     tillaeg = {p: max(0, target[p] - kreds_seats.get(p, 0)) for p in qual}
+    for p in qual:  # forenklet: får et parti flere kredsmandater end sit officielle antal, tages de overskydende fra
+        while kreds_seats[p] > target[p]:
+            sk = max(sk_man, key=lambda s: sk_man[s].get(p, 0))
+            sk_man[sk][p] -= 1
+            kreds_seats[p] -= 1
+            k = min([k for k in out_k if k["sk"] == sk and elected.get((k["id"], p)) == 1], key=lambda k: k["c"][p][1])
+            del elected[(k["id"], p)]
     while sum(tillaeg.values()) > 40:
         p = max(tillaeg, key=lambda q: tillaeg[q] / max(1, target[q]))
         tillaeg[p] -= 1
@@ -244,7 +249,7 @@ def fv():
             sk_till[sk][p] = sk_till[sk].get(p, 0) + 1
     nat_seats = {p: {"kreds": kreds_seats.get(p, 0), "tillaeg": tillaeg.get(p, 0)} for p in nat}
     return {
-        "name": "Folketingsvalg (eksempel)", "date": "eksempeldato – ikke et rigtigt valg",
+        "name": "Folketingsvalg 2026", "date": "24. marts 2026",
         "seats": 175, "kredsSeats": 135, "tillaegSeats": 40,
         "nationalVotes": nat, "nationalSeats": nat_seats, "polOrder": POL_ORDER,
         "storkredse": [{"id": sk, "name": nm, "seats": seats[sk], "mandates": sk_man[sk], "tillaeg": sk_till[sk], "electorate": sk_elec[sk],
