@@ -88,6 +88,13 @@ Siden har `noindex`, så søgemaskiner ikke bør vise den, men et offentligt lin
 
 UX-gennemgangen med bots, friktionstabel og Dommerens vurdering ligger i `docs/ux-gennemgang-version-d.md`.
 
+### Runde 6 (17. november 2026): rettelser efter gennemgang
+
+* **Kortet styrer tallene:** «Hele Danmark» viser nu hele landet, og «Region Hovedstaden» (før «Københavnsområdet») viser regionen – også i tallene til venstre. Før flyttede knapperne kun kortet. Den valgte knap er markeret.
+* **Hent data i trin:** Rækkefølgen er nu 1) Hvilket valg? 2) Hvilke tal? 3) Hvilket format? Trin 2 vises først, når man har valgt år, og format, knap og forhåndsvisning først, når man har valgt tal (Kristians «meget tal på én gang»). Det nye trin glider stille frem (ikke ved reduceret bevægelse).
+* **Ingen indre scroll på Hent data:** Siden vokser i stedet, og forhåndsvisningen viser højst 8 områder plus «… og 21 områder mere i filen».
+* **Sætningen holder sin størrelse:** Søgefeltet er flyttet op ved overskriften, og sætningen står altid på én linje på store skærme – er den lang, bliver skriften lidt mindre i stedet for at springe til to linjer. På mobil må den bryde som før. Regionsnavne i sætningen står uden «(29 kommuner)».
+
 ### Runde 5 (17. november 2026): alle fem valgtyper
 
 Valg.dk dækker fem typer valg, og der kommer nye hvert år eller hvert andet år. Prototypen har nu dem alle som eksempeldata, så man kan se, hvordan man navigerer i et landskab med 24 valg:

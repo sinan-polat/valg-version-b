@@ -192,7 +192,7 @@
       return wrap.length > 1 ? h('span', { class: 'slotw' }, wrap) : btn;
     }
     const areaGroups = (valg, doing) => [{ items: [['land', 'hele landet']].concat(doing === 'hente' ? [['alle-reg', 'alle regioner'], ['alle-kom', 'alle 98 kommuner']] : []) },
-        { label: doing === 'hente' ? 'Kommunerne i en region' : 'Regioner', items: REG.map(r => [r.id, doing === 'hente' ? `${r.name} (${H.getArea(r.id).kommuner.length} kommuner)` : r.name]) }]
+        { label: doing === 'hente' ? 'Kommunerne i en region' : 'Regioner', items: REG.map(r => [r.id, r.name]) }]
       .concat(valg === 'fv' && doing === 'se' ? [{ label: 'Storkredse (folketingsvalg)', items: FV.storkredse.map(x => [x.id, x.name]) }] : [], [{ label: 'Kommuner', items: komSorted.map(k => [k.id, k.name]) }]);
     const lumOf = hex => { const n = parseInt(String(hex).replace('#', ''), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((t, v, i) => t + v * [0.2126, 0.7152, 0.0722][i], 0); };
     const inkOn = c => { const L = lumOf(c), cw = 1.05 / (L + 0.05), ci = (L + 0.05) / (lumOf('#0F1E3A') + 0.05); return ci > cw ? '#0F1E3A' : '#fff'; };
@@ -402,12 +402,13 @@
       const endDrag = () => { drag = null; wrap.classList.remove('drag'); };
       svg.addEventListener('pointerup', endDrag); svg.addEventListener('pointercancel', endDrag);
       svg.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
-      const quick = (t, lab, f) => h('button', { type: 'button', class: 'mq', title: lab, 'aria-label': lab, onclick: f }, t);
+      const quick = (t, lab, f, on) => h('button', { type: 'button', class: 'mq', title: lab, 'aria-label': lab, 'aria-pressed': on ? 'true' : 'false', onclick: f }, t);
       const [kx, ky] = GEO.P(55.69, 12.43);
       wrap.append(h('div', { class: 'mapzoom', role: 'group', 'aria-label': 'Zoom på kortet' }, zin, zout),
         h('div', { class: 'mapquick', role: 'group', 'aria-label': 'Hurtig zoom' },
-          quick('Københavnsområdet', 'Zoom ind på københavnsområdet', () => { log('map-zoom', 'kbh'); setVB(kx - 38, ky - 38 * AR, 76); }),
-          quick('Hele Danmark', 'Vis hele kortet', () => { log('map-zoom', 'alt'); setVB(0, 0, FULL[2]); })));
+          /* knapperne skifter også området, så tallene til venstre altid passer til kortet (bugrapport 17.11) */
+          quick('Region Hovedstaden', 'Vis Region Hovedstaden', () => { log('map-zoom', 'kbh'); if (opts.onRegion) opts.onRegion('region-hovedstaden'); else setVB(kx - 38, ky - 38 * AR, 76); }, (cmp ? b : a) === 'region-hovedstaden'),
+          quick('Hele Danmark', 'Vis hele landet', () => { log('map-zoom', 'alt'); if (opts.onLand) opts.onLand(); else setVB(0, 0, FULL[2]); }, (cmp ? b : a) === 'land')));
       zin.disabled = cur[2] <= MINW + .01; zout.disabled = cur[2] >= FULL[2] - .01; svg.style.touchAction = zoomF() > 1.05 ? 'none' : 'pan-y';
       applyR();
       requestAnimationFrame(() => { applyR(); paintLabels(); });
@@ -479,6 +480,7 @@
       ST = fromQuery(q);
       const el = h('div', { class: 'dpage' });
       const sentenceBox = h('div', { class: 'sent-wrap' });
+      let hentStage = 0, shownStage = 0;
       const answer = h('section', { class: 'dans', 'aria-labelledby': 'dh-lede' });
       const say = h('p', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
       let liveSay = 0;
@@ -488,6 +490,7 @@
         const old = Object.assign({}, ST);
         Object.assign(ST, patch); const prev = ST.valg;
         normalize(ST, changed, old);
+        if (ST.do === 'hente') { if (old.do !== 'hente') hentStage = 0; else if (changed === 'valg') hentStage = Math.max(hentStage, 1); else if (changed === 'omr' || changed === 'fmt') hentStage = 2; }
         if (ST.omr && byId[ST.omr] && changed === 'omr') saveFoc(ST.omr);
         setHash(); log('sentence', JSON.stringify(ST));
         const autoKey = ST.do === 'sammenlign' && old.do === 'sammenlign' ? (old.valg2 !== ST.valg2 && changed !== 'valg2' ? 'valg2' : old.valg !== ST.valg && changed !== 'valg' ? 'valg' : null) : null;
@@ -521,10 +524,23 @@
         if (ST.do === 'hente') parts.push(' som ', slot('Filformat', [{ items: [['excel', 'Excel-fil'], ['csv', 'CSV-fil']] }], ST.fmt, v => update('fmt', { fmt: v }), 'fmt'));
         parts.push(h('span', { style: 'white-space:nowrap' }, parts.pop(), '.')); /* punktummet følger sidste felt og står aldrig alene på en linje */
         sentenceBox.append(h('p', { class: 'sent' }, parts));
+        fitSentence();
         const t1 = $('#dh1', el); if (t1) t1.textContent = H1[ST.do];
         document.title = H1[ST.do] + ' – valg.dk prototype (version D)';
         if (autoKey && !RM) { const a = $(`[data-k="${autoKey}"]`, sentenceBox); if (a) a.animate([{ boxShadow: '0 0 0 0 rgba(0,130,62,.75)' }, { boxShadow: '0 0 0 12px rgba(0,130,62,0)' }], { duration: 900, iterations: 2, easing: 'ease-out' }); }
         if (focusKey) { const f = $(`[data-k="${focusKey}"]`, sentenceBox); if (f) { f.focus(); if (!RM) f.animate([{ transform: 'scale(1.08)', boxShadow: '0 0 0 0 rgba(220,206,117,.95)' }, { transform: 'scale(1)', boxShadow: '0 0 0 10px rgba(220,206,117,0)' }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' }); } }
+      }
+
+      /* sætningen står altid på én linje på store skærme: er den for lang, bliver skriften lidt mindre i stedet for at
+         springe til to linjer og skubbe alt andet ned (feedback 17.11). På mobil må den gerne bryde. */
+      function fitSentence() {
+        const p = sentenceBox.querySelector('.sent'); if (!p) return;
+        p.style.fontSize = ''; p.style.whiteSpace = '';
+        if (matchMedia('(max-width:900px)').matches) return;
+        p.style.whiteSpace = 'nowrap';
+        const avail = sentenceBox.clientWidth; if (!avail) return;
+        let fs = parseFloat(getComputedStyle(p).fontSize), guard = 40;
+        while (p.scrollWidth > avail + 1 && fs > 14 && guard--) { fs -= 0.5; p.style.fontSize = fs + 'px'; }
       }
 
       /* ---- svaret ---- */
@@ -532,13 +548,14 @@
       function paintMap(root) {
         const cmp = ST.do === 'sammenlign';
         const onKom = id => { log('map', id); if (cmp) update('omr2', { omr2: id }); else update('omr', { omr: id }); };
-        const opts = { valg: ST.valg, metric: 'party', borders: true, counted: ST.valg === 'kv2025' ? isCounted : null, onSelect: onKom, onRegion: rid => { log('map', rid); if (cmp) update('omr2', { omr2: rid }); else update('omr', { omr: rid }); } };
+        const opts = { valg: ST.valg, metric: 'party', borders: true, counted: ST.valg === 'kv2025' ? isCounted : null, onSelect: onKom, onRegion: rid => { log('map', rid); if (cmp) update('omr2', { omr2: rid }); else update('omr', { omr: rid }); }, onLand: () => { log('map', 'land'); if (cmp) update('omr2', { omr2: 'land' }); else update('omr', { omr: 'land' }); } };
         root.append(fancyMap(opts, ST.omr, cmp ? ST.omr2 : null, cmp), h('p', { class: 'mapnote' }, cmp ? 'Klik på en kommune for at skifte det andet område.' : 'Klik på en kommune eller region for at se dens resultat.'));
       }
       function seatsOf(R) { const seats = []; R.rows.slice().sort((a, b) => b.m - a.m).forEach(r => { for (let i = 0; i < r.m; i++) seats.push({ p: r.p, title: `${r.p} – ${r.name}` }); }); return seats; }
 
       function drawAnswer() {
         answer.innerHTML = '';
+        document.body.classList.toggle('dfree', ST.do === 'hente');
         const A = ST.do === 'hente' ? { rows: [], pending: false, type: 'hente' } : resultOf(ST.omr, ST.valg);
         const lede = h('p', { class: 'lede', id: 'dh-lede' });
         const setLede = t => { const m = String(t).match(/^(.+?[.!?])(\s+[\s\S]*)?$/); lede.innerHTML = ''; if (m && m[2]) lede.append(h('span', {}, m[1]), h('span', { class: 'more' }, m[2])); else lede.textContent = t; };
@@ -586,18 +603,19 @@
           const ids = ST.omr, rows = exportRows(ids, ST.valg), running = ST.valg === 'kv2025' && LIVE.on && LIVE.n < KOM.length;
           const scope = ids === 'land' ? 'land' : ids === 'alle-reg' ? 'reg' : ids === 'alle-kom' ? 'kom' : ids.startsWith('region-') ? 'regkom' : 'en';
           const desc = ids === 'land' ? 'én række for hvert parti i hele landet' : ids === 'alle-kom' ? 'én række for hvert parti i hver af de 98 kommuner' : ids === 'alle-reg' ? 'én række for hvert parti i hver af de fem regioner' : scope === 'regkom' ? `én række for hvert parti i hver af de ${H.getArea(ids).kommuner.length} kommuner i ${areaIn(ids)}` : 'én række for hvert parti i ' + areaIn(ids);
-          setLede(`Du får én fil med ${fmtN(rows.length)} rækker: ${desc}. Vælg tallene i tre trin herunder.`);
+          const stage = hentStage; /* 0: kun valget · 1: + hvilke tal · 2: + format, knap og forhåndsvisning (Kristian: «meget tal på én gang») */
+          setLede(stage === 0 ? 'Vælg først, hvilket valg du vil hente tal fra.' : stage === 1 ? `Vælg nu, hvilke tal fra ${lowerFirst(ELNAME[ST.valg])} du vil have.` : `Du får én fil med ${fmtN(rows.length)} rækker: ${desc}.`);
           const refocus = sel => requestAnimationFrame(() => { const f = answer.querySelector(sel); if (f) f.focus(); });
-          const opt = (k, t, sub, on, pressed) => h('button', { type: 'button', class: 'opt', 'data-opt': k, 'aria-pressed': String(pressed), onclick: () => { on(); refocus(`[data-opt="${k}"]`); } }, h('strong', {}, t), h('small', {}, sub));
+          const opt = (k, t, sub, on, pressed) => h('button', { type: 'button', class: 'opt', 'data-opt': k, 'aria-pressed': String(pressed), onclick: () => { if (!['excel', 'csv'].includes(k)) hentStage = 2; on(); refocus(`[data-opt="${k}"]`); } }, h('strong', {}, t), h('small', {}, sub));
           const firstReg = REG[REG.findIndex(r => r.id === 'region-hovedstaden')] || REG[0];
           const step1 = h('div', { class: 'opts', role: 'group', 'aria-label': 'Hvilke tal?' },
-            opt('land', 'Hele landet', 'Ét samlet tal pr. parti', () => update('omr', { omr: 'land' }), scope === 'land'),
-            opt('reg', 'De 5 regioner', 'Ét tal pr. parti pr. region', () => update('omr', { omr: 'alle-reg' }), scope === 'reg'),
-            opt('kom', 'Alle 98 kommuner', 'Til statistik på tværs af landet', () => update('omr', { omr: 'alle-kom' }), scope === 'kom'),
-            opt('regkom', 'Kommunerne i en region', 'Fx de 29 i Region Hovedstaden', () => update('omr', { omr: scope === 'regkom' ? ids : firstReg.id }), scope === 'regkom'),
-            opt('en', 'Én kommune', 'Kun tallene for din kommune', () => update('omr', { omr: scope === 'en' ? ids : (loadFoc() || 'horsholm') }), scope === 'en'));
+            opt('land', 'Hele landet', 'Ét samlet tal pr. parti', () => update('omr', { omr: 'land' }), stage > 1 && scope === 'land'),
+            opt('reg', 'De 5 regioner', 'Ét tal pr. parti pr. region', () => update('omr', { omr: 'alle-reg' }), stage > 1 && scope === 'reg'),
+            opt('kom', 'Alle 98 kommuner', 'Til statistik på tværs af landet', () => update('omr', { omr: 'alle-kom' }), stage > 1 && scope === 'kom'),
+            opt('regkom', 'Kommunerne i en region', 'Fx de 29 i Region Hovedstaden', () => update('omr', { omr: scope === 'regkom' ? ids : firstReg.id }), stage > 1 && scope === 'regkom'),
+            opt('en', 'Én kommune', 'Kun tallene for din kommune', () => update('omr', { omr: scope === 'en' ? ids : (loadFoc() || 'horsholm') }), stage > 1 && scope === 'en'));
           let sub1 = null;
-          if (scope === 'regkom' || scope === 'en') {
+          if (stage > 1 && (scope === 'regkom' || scope === 'en')) {
             const items = scope === 'regkom' ? REG.map(r => [r.id, `${r.name} (${H.getArea(r.id).kommuner.length} kommuner)`]) : komSorted.map(k => [k.id, k.name]);
             const sel = h('select', { class: 'dsel', id: 'hsel' }, items.map(([v, t]) => { const o = h('option', { value: v }, t); if (v === ids) o.selected = true; return o; }));
             sel.addEventListener('change', () => { update('omr', { omr: sel.value }); refocus('#hsel'); });
@@ -606,7 +624,7 @@
           const tNow = typeOf(ST.valg);
           const step2 = h('div', { class: 'vsteps' },
             h('div', { class: 'seg2 wrap', role: 'group', 'aria-label': 'Type valg' }, TYPE_ORDER.map(t => h('button', { type: 'button', 'data-opt': 't-' + t, 'aria-pressed': String(tNow === t), onclick: () => { update('valg', { valg: tNow === t ? ST.valg : elsOfType(t)[0] }); refocus(`[data-opt="t-${t}"]`); } }, TYPES[t].name))),
-            h('div', { class: 'seg2 wrap', role: 'group', 'aria-label': TYPES[tNow].name + ': hvilket år?' }, elsOfType(tNow).map(v => h('button', { type: 'button', 'data-opt': 'v-' + v, 'aria-pressed': String(ST.valg === v), 'aria-label': ELNAME[v], onclick: () => { update('valg', { valg: v }); refocus(`[data-opt="v-${v}"]`); } }, String(yr(v))))));
+            h('div', { class: 'seg2 wrap', role: 'group', 'aria-label': TYPES[tNow].name + ': hvilket år?' }, elsOfType(tNow).map(v => h('button', { type: 'button', 'data-opt': 'v-' + v, 'aria-pressed': String(stage > 0 && ST.valg === v), 'aria-label': ELNAME[v], onclick: () => { hentStage = Math.max(hentStage, 1); update('valg', { valg: v }); refocus(`[data-opt="v-${v}"]`); } }, String(yr(v))))));
           const step3 = h('div', { class: 'opts two', role: 'group', 'aria-label': 'Hvilket format?' },
             opt('excel', 'Excel', 'Åbner direkte i dansk Excel (semikolon og decimalkomma)', () => update('fmt', { fmt: 'excel' }), ST.fmt === 'excel'),
             opt('csv', 'CSV', 'Komma og decimalpunktum – til R, Python eller SPSS', () => update('fmt', { fmt: 'csv' }), ST.fmt === 'csv'));
@@ -615,8 +633,18 @@
             const text = ST.fmt === 'excel' ? csv(HEAD, rows) : csv(HEAD, rows, { sep: ',', dec: '.' });
             download(`valg-${ids}-${ST.valg}.csv`, text); say.textContent = 'Filen er hentet.'; btn.classList.add('done'); btn.querySelector('.bl').textContent = 'Filen er hentet'; log('hent', ids + ' ' + ST.valg);
           } }, h('span', { class: 'bl' }, `Hent ${ST.fmt === 'excel' ? 'Excel-filen' : 'CSV-filen'}`), h('span', { class: 'bs' }, `${fmtN(rows.length)} rækker · ${HEAD.length} kolonner`));
-          left.append(h('div', { class: 'hent2' }, stepEl(1, 'Hvilke tal?', step1, sub1), stepEl(2, 'Hvilket valg?', step2), stepEl(3, 'Hvilket format?', step3),
-            h('div', { class: 'hgo' }, btn, running ? h('p', { class: 'warn-note' }, 'Optællingen kører (simulation). Hent først filen, når den er afsluttet, så den ikke indeholder halve tal.') : h('p', { class: 'mapnote' }, 'Eksempeldata, ikke officielle tal.'))));
+          left.append(h('div', { class: 'hent2' }, stepEl(1, 'Hvilket valg?', step2, stage === 0 ? h('p', { class: 'hhint' }, 'Vælg type og derefter år.') : null),
+            stage > 0 ? stepEl(2, 'Hvilke tal?', step1, sub1) : null,
+            stage > 1 ? stepEl(3, 'Hvilket format?', step3) : null,
+            stage > 1 ? h('div', { class: 'hgo' }, btn, running ? h('p', { class: 'warn-note' }, 'Optællingen kører (simulation). Hent først filen, når den er afsluttet, så den ikke indeholder halve tal.') : h('p', { class: 'mapnote' }, 'Eksempeldata, ikke officielle tal.')) : null));
+          /* det nye trin glider stille frem, så man ser, hvad der kom til */
+          if (stage > shownStage && !RM) { const st = left.querySelectorAll('.hstep, .hgo'); [...st].slice(stage === 1 ? 1 : 2).forEach(x => x.classList.add('reveal')); }
+          shownStage = stage;
+          if (stage < 2) {
+            right.append(h('div', { class: 'preview pv-wait' }, h('p', { class: 'pv-h' }, h('strong', {}, 'Sådan ser filen ud')),
+              h('div', { class: 'pv-empty' }, h('span', {}, stage === 0 ? 'Når du har valgt valg og tal, ser du her, hvad filen kommer til at indeholde.' : 'Vælg, hvilke tal du vil have, så ser du filen her.'))));
+            answer.append(lede, grid, strip(A)); return;
+          }
           /* forhåndsvisning: kun de kolonner, der skal læses, ingen vandret scroll, og et samlet overblik øverst */
           const areas = [...new Set(rows.map(r => r[0]))];
           const sumV = rows.reduce((t, r) => t + r[4], 0), sumM = rows.reduce((t, r) => t + (+r[6] || 0), 0), noM = rows.every(r => r[6] === '');
@@ -634,16 +662,17 @@
               h('tbody', {}, rows.map(r => h('tr', {}, h('td', { class: 'pv-p' }, letter(r[2], 'sm'), h('span', {}, r[3])), h('td', { class: 'num' }, fmtN(r[4])), h('td', { class: 'num' }, fmtP(r[5], 1)), h('td', { class: 'num' }, h('b', {}, r[6] === '' ? '–' : String(r[6]))), h('td', { class: 'num pv-d' + (r[7] > 0 ? ' up' : r[7] < 0 ? ' dn' : '') }, chg(r[7]))))),
               h('tfoot', {}, h('tr', {}, h('th', { scope: 'row' }, 'I alt'), h('td', { class: 'num' }, fmtN(sumV)), h('td', { class: 'num' }, '100 %'), h('td', { class: 'num' }, h('b', {}, noM ? '–' : String(sumM))), h('td', {}, ''))));
           } else {
-            const per = areas.map(a => { const l = rows.filter(r => r[0] === a), b = l.slice().sort((x, y) => (+y[6] || 0) - (+x[6] || 0) || y[4] - x[4])[0]; return { a, n: l.length, v: l.reduce((t, r) => t + r[4], 0), m: l.reduce((t, r) => t + (+r[6] || 0), 0), big: b }; });
+            const perAll = areas.map(a => { const l = rows.filter(r => r[0] === a), b = l.slice().sort((x, y) => (+y[6] || 0) - (+x[6] || 0) || y[4] - x[4])[0]; return { a, n: l.length, v: l.reduce((t, r) => t + r[4], 0), m: l.reduce((t, r) => t + (+r[6] || 0), 0), big: b }; });
+            const per = perAll.slice(0, 8), rest = perAll.length - per.length;
             cap = `Overblik over de ${fmtN(areas.length)} områder – filen har én række pr. parti i hvert område`;
             table = h('table', { class: 'pv pv2' },
               h('thead', {}, h('tr', {}, ['Område', 'Største parti', 'Stemmer', 'Mandater'].map((t, i) => h('th', { scope: 'col', class: i > 1 ? 'num' : '' }, t)))),
-              h('tbody', {}, per.map(x => h('tr', {}, h('td', {}, x.a), h('td', { class: 'pv-p' }, x.big ? letter(x.big[2], 'sm') : null, h('span', {}, x.big ? (noM ? fmtP(x.big[5]) : `${x.big[6]} af ${x.m}`) : '')), h('td', { class: 'num' }, fmtN(x.v)), h('td', { class: 'num' }, h('b', {}, noM ? '–' : String(x.m)))))),
+              h('tbody', {}, per.map(x => h('tr', {}, h('td', {}, x.a), h('td', { class: 'pv-p' }, x.big ? letter(x.big[2], 'sm') : null, h('span', {}, x.big ? (noM ? fmtP(x.big[5]) : `${x.big[6]} af ${x.m}`) : '')), h('td', { class: 'num' }, fmtN(x.v)), h('td', { class: 'num' }, h('b', {}, noM ? '–' : String(x.m))))), rest > 0 ? h('tr', { class: 'pv-more' }, h('td', { colspan: '4' }, `… og ${fmtN(rest)} ${rest === 1 ? 'område' : 'områder'} mere i filen`)) : null),
               h('tfoot', {}, h('tr', {}, h('th', { scope: 'row' }, 'I alt'), h('td', {}, ''), h('td', { class: 'num' }, fmtN(sumV)), h('td', { class: 'num' }, h('b', {}, noM ? '–' : String(sumM))))));
           }
           right.append(h('div', { class: 'preview' }, h('p', { class: 'pv-h' }, h('strong', {}, 'Sådan ser filen ud'), ' · ' + cap),
             tot,
-            h('div', { class: 'pv-scroll pv-y', tabindex: '0', role: 'region', 'aria-label': 'Forhåndsvisning af filen' }, table),
+            h('div', { class: 'pv-box' }, table),
             h('p', { class: 'pv-n' }, `Filen har ${HEAD.length} kolonner: ${HEAD.join(', ')}. Ændring er målt i forhold til forrige valg af samme type.`)));
         }
         answer.append(lede, grid, strip(A));
@@ -699,8 +728,10 @@
       /* ---- sammensætning ---- */
       const finder = S.searchBox({ placeholder: 'Kommune, kandidat eller parti', id: 'dq', onKommune: id => { finder.inp.value = ''; current.pick(id); } });
       finder.form.classList.add('dfind');
-      el.append(h('div', { class: 'dtop' }, h('div', { class: 'dtitle' }, h('h1', { id: 'dh1' }, 'Hvordan gik valget?')),
-        h('div', { class: 'sent-row' }, sentenceBox, h('div', { class: 'dfind-wrap' }, h('label', { class: 'or', for: 'dq' }, 'eller søg'), finder.form))), answer, say);
+      el.append(h('div', { class: 'dtop' }, h('div', { class: 'dtitle' }, h('h1', { id: 'dh1' }, 'Hvordan gik valget?'), h('div', { class: 'dfind-wrap' }, h('label', { class: 'or', for: 'dq' }, 'eller søg'), finder.form)),
+        h('div', { class: 'sent-row' }, sentenceBox)), answer, say);
+      let fitT = null; window.addEventListener('resize', () => { if (!el.isConnected) return; clearTimeout(fitT); fitT = setTimeout(fitSentence, 80); });
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (el.isConnected) fitSentence(); });
       drawSentence(); drawAnswer(); setHash();
       const sub = () => { if (!el.isConnected) { LIVE.subs.delete(sub); return; } drawAnswer(); };
       LIVE.subs.add(sub);
@@ -791,6 +822,7 @@
         S.baseAfterRender();
         const raw = location.hash.replace(/^#/, '') || '/', isHome = raw === '/' || raw.startsWith('/?');
         document.body.classList.toggle('tv', raw.startsWith('/storskaerm'));
+        if (!isHome) document.body.classList.remove('dfree');
         if (raw.startsWith('/storskaerm')) document.body.classList.remove('fit');
         S.setKommuneHook(isHome && current ? current.pick : null);
         markNav();

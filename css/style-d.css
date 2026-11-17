@@ -649,3 +649,19 @@ body[data-ver="d"] .dfind-wrap .dfind input{font-size:16px}
 .seg2.wrap{flex-wrap:wrap}
 body[data-ver="d"] .seg2.wrap button[aria-pressed="true"]{background:var(--ink);color:#fff;box-shadow:none}
 .bcap.why{margin-top:2px;max-width:60ch}
+/* Runde 6 (17.11): hent data i trin uden indre scroll, sætning på én linje, søgning ved titlen */
+body.fit.dfree{height:auto;overflow:visible}
+body.dfree main,body.dfree .dpage,body[data-ver="d"].dfree .dans,body.dfree .dgrid,body.dfree .hent2,body.dfree .preview{flex:none;overflow:visible;min-height:0}
+body.dfree .dleft,body.dfree .dright{display:block}
+.hhint{margin:2px 0 0;color:var(--muted);font-size:14px}
+.pv-box{border:1px solid var(--hair);border-radius:14px;overflow:hidden}
+.pv-more td{color:var(--muted);font-size:13px;text-align:left;padding:8px 12px}
+.pv-empty{border:1.5px dashed var(--hair2,#C9D1DA);border-radius:14px;padding:28px 24px;color:var(--muted);min-height:180px;display:flex;align-items:center;font-size:15px;line-height:1.5}
+.reveal{animation:hreveal .28s ease-out both}
+@keyframes hreveal{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.reveal{animation:none}}
+.dtitle{align-items:center}
+@media (min-width:901px){.dtitle .dfind-wrap{flex:0 1 460px}}
+@media (max-width:900px){.dtitle .dfind-wrap{flex:none;width:100%;max-width:none}}
+.sent-row .sent-wrap{flex:1 1 100%;min-width:0}
+.mapquick .mq[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
