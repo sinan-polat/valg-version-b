@@ -611,3 +611,35 @@ body[data-ver="d"] .slot:focus-visible{outline:2px solid transparent;box-shadow:
 .pv.pv2 tfoot td.num{text-align:right}
 .pv.pv2 .pv-d.up{color:#00823E}.pv.pv2 .pv-d.dn{color:#C33030}
 @media (max-width:600px){.pv-tot{grid-template-columns:repeat(2,minmax(0,1fr))}.pv.pv2.one th:nth-child(3),.pv.pv2.one td:nth-child(3){display:none}.pv.pv2{font-size:12.5px}.pv.pv2 td,.pv.pv2 th{padding:5px 4px}.pv.pv2 .pv-p{gap:6px}.pv-scroll.pv-y{max-height:70vh}}
+
+/* ===== Runde 4 (17.11.2026): rettelser efter pilottesten 16.11 ===== */
+/* søgefeltet står ved sætningen, så det ses */
+.sent-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 26px}
+.sent-row .sent-wrap{flex:0 1 auto;min-width:0}
+.dfind-wrap{display:flex;align-items:center;gap:10px;flex:1 1 320px;max-width:460px}
+.dfind-wrap .or{font:400 clamp(16px,.5vw + 1vh,20px) var(--font);color:var(--muted);white-space:nowrap}
+.dfind-wrap .dfind{flex:1;width:auto}
+body[data-ver="d"] .dfind-wrap .dfind .box{border:2px solid var(--slate,#3F5061);border-radius:10px;padding:3px}
+body[data-ver="d"] .dfind-wrap .dfind input{font-size:16px}
+@media (max-width:900px){.dfind-wrap{max-width:none;flex-basis:100%}}
+/* året ved tallene og genvej til forrige valg */
+.bcap{margin:0 0 4px;font:400 13.5px/1.35 var(--font);color:var(--muted)}
+.bcap strong{color:var(--ink);font-weight:600}
+.ctl .cmpprev{margin-left:auto;text-decoration:none}
+.ballot.cmp .dl.up{color:#00823E}.ballot.cmp .dl.dn{color:#C33030}
+/* kortet: streger, zoom og navne */
+.dmap2 path,.dmap2 circle{vector-effect:non-scaling-stroke}
+.dmap2 .borders path{stroke:#7F93A3;stroke-width:1.3;stroke-linecap:round}
+.dmap2 .klabel{font-family:var(--font);font-weight:500;fill:#26323F;paint-order:stroke;stroke:#F9F9F8;stroke-linejoin:round;pointer-events:none}
+.dmap2 .klabel.sel{font-weight:700;fill:#0F1E3A}
+.dmap2.zoomed .rlabel{display:none}
+.mapwrap{touch-action:pan-y}
+.mapwrap.drag,.mapwrap.drag *{cursor:grabbing!important}
+.mapzoom{position:absolute;top:6px;right:6px;display:flex;flex-direction:column;gap:6px;z-index:3}
+.mapzoom .mz{width:36px;height:36px;border:1px solid var(--hair2,#D5D5D5);border-radius:9px;background:#fff;color:var(--ink);font:600 20px/1 var(--font);cursor:pointer;box-shadow:0 1px 2px rgba(15,30,58,.08)}
+.mapzoom .mz:hover:not(:disabled){background:#F1F4F6}
+.mapzoom .mz:disabled{opacity:.4;cursor:default}
+.mapquick{position:absolute;top:6px;left:6px;display:flex;flex-wrap:wrap;gap:6px;z-index:3;max-width:calc(100% - 60px)}
+.mapquick .mq{min-height:32px;padding:0 12px;border:1px solid var(--hair2,#D5D5D5);border-radius:999px;background:#fff;color:var(--ink);font:500 13px var(--font);cursor:pointer}
+.mapquick .mq:hover{background:#F1F4F6}
+.mapzoom .mz:focus-visible,.mapquick .mq:focus-visible{outline:3px solid #0F1E3A;outline-offset:2px}

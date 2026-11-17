@@ -302,7 +302,7 @@
 
   function accordion(linkFor) {
     const accData = [
-      ['Kommunalvalg', 'Find resultater fra kommunalvalg i hele Danmark', [h('a', { href: linkFor('kv2025') }, 'Kommunalvalg 2025'), h('a', { href: linkFor('kv2021') }, 'Kommunalvalg 2021')]],
+      ['Kommunalvalg', 'Find resultater fra kommunalvalg i hele Danmark', Object.keys(ELS).map(v => h('a', { href: linkFor(v) }, ELS[v].name))],
       ['Regionsrådsvalg', 'Find resultater fra regionsrådsvalg i hele Danmark', null],
       ['Europa-Parlamentsvalg', 'Find resultater fra Europa-Parlamentsvalg i Danmark', null],
       ['Folkeafstemning', 'Find resultater fra folkeafstemninger i Danmark', null],
@@ -937,7 +937,7 @@
   function sitemapPage() {
     const sec = (t, links) => [h('h2', {}, t), h('ul', {}, links.map(([hr, l]) => h('li', {}, h('a', { href: hr }, l))))];
     return docPage('Sitemap',
-      sec('Valgresultater', [['#/find', 'Find resultat'], [resultHref('land', 'kv2025'), 'Hele landet – Kommunalvalg 2025'], [resultHref('land', 'kv2021'), 'Hele landet – Kommunalvalg 2021']].concat(REG.map(r => [resultHref(r.id, 'kv2025'), r.name]))),
+      sec('Valgresultater', [['#/find', 'Find resultat'], ].concat(Object.keys(ELS).map(v => [resultHref('land', v), 'Hele landet – ' + ELS[v].name])).concat(REG.map(r => [resultHref(r.id, 'kv2025'), r.name]))),
       sec('Tal og data', [['#/sammenlign', 'Sammenlign områder'], ['#/data', 'Hent data']]),
       sec('Om valg.dk', [['#/om-valg', 'Om valg.dk'], ['#/driftstatus', 'Driftstatus for valg.dk'], ['#/tilgaengelighed', 'Tilgængelighedserklæring'], ['#/privatliv', 'Privatlivspolitik og brug af data']]));
   }

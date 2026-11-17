@@ -88,6 +88,24 @@ Siden har `noindex`, så søgemaskiner ikke bør vise den, men et offentligt lin
 
 UX-gennemgangen med bots, friktionstabel og Dommerens vurdering ligger i `docs/ux-gennemgang-version-d.md`.
 
+### Runde 4 (17. november 2026): rettelser efter pilottesten
+
+Pilottesten 16.11 med en product owner i KOMBIT (P01) fandt fejl i version D (rapportens version B). De er rettet sådan:
+
+| Fund i pilottesten | Rettelse |
+|---|---|
+| Ishøj kunne ikke sammenlignes med sig selv på tværs af valg (T3: 128 sek., 21 klik) | Hvert område har sit eget valg i sætningen: «Jeg vil sammenligne [Ishøj] ved [Kommunalvalg 2025] med [Ishøj] ved [Kommunalvalg 2021].» Vælger man samme område to gange, skifter det andet valg selv til forrige valg, og feltet blinker grønt. Resuméet svarer direkte: «… 9 ved kommunalvalg 2025 mod 10 ved kommunalvalg 2021, altså 1 mandat færre.» Ved samme byrådsstørrelse vises mandaterne som antal i stedet for andele. |
+| «Jeg vil bare vide, hvilket år jeg er i her» | Året står ved begge sider i sammenligningen, over tallene («Mandater ved kommunalvalg 2025 · tallet til højre er ændringen siden 2021») og i statuslinjen. Ny knap «Sammenlign med 2021» ved resultatet. Eksporten af en sammenligning har en kolonne «Valg». |
+| Søgefeltet blev ikke set | Feltet står nu lige efter sætningen med teksten «eller søg» og tydelig kant, ikke oppe i hjørnet. |
+| Kortet var for udetaljeret, og man kunne ikke finde sin kommune | Streger mellem regionerne og tydeligere kyst, zoom med + og −, scrollhjul og træk, knapperne «Københavnsområdet» og «Hele Danmark», kommunenavne når man zoomer ind, og boblerne bliver mindre, når man zoomer, så København kan skilles ad. Kommunegrænser kræver rigtige kortdata (fx fra Dataforsyningen) og er ikke med. |
+| «Mandater»-fanen var uklar | Hedder nu «Mandatfordeling». |
+
+**Flere valg:** `tools/add_older_elections.py` tilføjer Kommunalvalg 2017 og 2013 (eksempeldata) med afstemningsområder. Tallene for 2025 og 2021 er uændrede, så testopgaverne har de samme svar. Alle versioner bruger de samme data; version A viser de ældre valg i sine lister, men dens design er ikke ændret. Kandidater findes stadig kun for Kommunalvalg 2025.
+
+**Ikke ændret (åbent spørgsmål):** P01 oplevede version D som for tæt («for mange ting, jeg skal forholde mig til på én gang») og foretrak trin. Det er ikke rettet, fordi det rører ved selve konceptet.
+
+Automatisk gennemgang efter rettelserne (Playwright, 1440 og 390 px, 22 adresser i version A–D): ingen scriptfejl, ingen vandret scroll og ingen tomme tal. Det er ikke en brugertest.
+
 **Før version D kan nævnes i rapporten:**
 1. Afgrænsningen i rapporten siger, at kandidater, Folketingsvalg og realtid ikke er med. D (og C) har dem, så teksten skal enten rettes eller D beskrives som perspektivering.
 2. Log skrifttyperne og eventuelle citater/formuleringer fra rapporten i kildelogen (bilag 14.6).
@@ -163,7 +181,7 @@ Forslag til succeskriterier: T1 inden for 30 sekunder uden hjælp; T2 når ekspo
 index.html            skal + hovednavigation
 css/style.css         design (farver som CSS-variabler øverst)
 js/app.js             alle skærme, routing, søgeforslag, diagrammer, eksport
-js/data.js            eksempeldata (genereret)
+js/data.js            eksempeldata (genereret; 2017 og 2013 tilføjet af tools/add_older_elections.py)
 js/test-mode.js       testpanel (kun med ?test=1)
 js/app-c.js           version C (valgaften, kredse, kandidater) og fælles datalag for C og D
 js/app-d.js           version D (Sætningen, Storskærm)
@@ -171,6 +189,7 @@ css/style-c.css       version C
 css/style-d.css       version D (gælder kun under body[data-ver="d"])
 fonts/                skrifttyper til version D (licens: fonts/LICENSES.md)
 tools/generate_data.py  genererer eksempeldata
+tools/add_older_elections.py  tilføjer Kommunalvalg 2017 og 2013
 .nojekyll             så GitHub Pages serverer filerne uændret
 ```
 

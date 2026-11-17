@@ -18,10 +18,13 @@
     const sk = Object.fromEntries(FV.storkredse.map(x => [x.id, x]));
     const komSorted = KOM.slice().sort((a, b) => a.name.localeCompare(b.name, 'da'));
     const DOTS = Object.keys(D.parties);
-    const ELNAME = { kv2025: ELS.kv2025.name, kv2021: ELS.kv2021.name, fv: FV.name };
+    const yr = v => v === 'fv' ? 0 : +((String((ELS[v] || {}).date || '').match(/\d{4}/) || [0])[0]);
+    /* alle kommunalvalg i data.js, nyeste først (2025, 2021, 2017, 2013) */
+    const KVS = Object.keys(ELS).filter(v => v.startsWith('kv')).sort((a, b) => yr(b) - yr(a));
+    const ELNAME = Object.assign({}, ...KVS.map(v => ({ [v]: ELS[v].name })), { fv: FV.name });
 
     /* ---------- områder og resultater ---------- */
-    const isKV = v => v === 'kv2025' || v === 'kv2021';
+    const isKV = v => !!ELS[v] && v.startsWith('kv');
     const areaSet = (valg, doing) => {
       if (valg === 'fv') return ['land'].concat(FV.storkredse.map(x => x.id));
       const base = ['land'].concat(REG.map(r => r.id), komSorted.map(k => k.id));
@@ -66,11 +69,11 @@
     /* seneste valg med rigtige datoer vælges automatisk (i dag Kommunalvalg 2025) */
     const yearOf = k => +((String(ELS[k].date || '').match(/\d{4}/) || [0])[0]);
     const LATEST = Object.keys(ELS).sort((a, b) => yearOf(b) - yearOf(a))[0] || 'kv2025';
-    const DEF = { do: 'se', hv: 'mand', omr: 'land', omr2: null, valg: LATEST, fmt: 'excel', side: null, sort: 'size', cmp: 'stem' };
+    const DEF = { do: 'se', hv: 'mand', omr: 'land', omr2: null, valg: LATEST, valg2: null, fmt: 'excel', side: null, sort: 'size', cmp: 'stem' };
     const sideOf = st => st.side || (st.valg === 'fv' ? 'prikker' : 'kort');
     let ST = Object.assign({}, DEF);
     let current = null; // { pick }
-    function normalize(st) {
+    function normalize(st, changed, old) {
       if (!['se', 'sammenlign', 'hente'].includes(st.do)) st.do = 'se';
       if (!ELNAME[st.valg]) st.valg = 'kv2025';
       if (st.do !== 'se' && st.valg === 'fv') st.valg = 'kv2025';
@@ -79,7 +82,14 @@
       if (!['mand', 'stem', 'valgte'].includes(st.hv)) st.hv = 'mand';
       if (st.do === 'sammenlign') {
         const set = areaSet(st.valg, 'sammenlign');
-        if (!st.omr2 || !set.includes(st.omr2) || st.omr2 === st.omr) st.omr2 = st.omr === 'land' ? 'region-hovedstaden' : 'land';
+        if (!st.omr2 || !set.includes(st.omr2)) st.omr2 = st.omr === 'land' ? 'region-hovedstaden' : 'land';
+        if (!isKV(st.valg2)) st.valg2 = st.valg;
+        /* samme område to gange giver kun mening ved to forskellige valg (pilottest 16.11: «Ishøj med Ishøj») */
+        if (st.omr2 === st.omr && st.valg2 === st.valg) {
+          if (changed === 'valg2' && old && old.valg2 !== st.valg2) st.valg = old.valg2;
+          else if (changed === 'valg' && old && old.valg !== st.valg) st.valg2 = old.valg;
+          else st.valg2 = ELS[st.valg].prev || KVS.find(v => v !== st.valg);
+        }
       }
       if (!['excel', 'csv'].includes(st.fmt)) st.fmt = 'excel';
       if (st.side && !['kort', 'prikker'].includes(st.side)) st.side = null;
@@ -87,14 +97,14 @@
     }
     function fromQuery(q) {
       const st = Object.assign({}, DEF);
-      ['do', 'hv', 'omr', 'omr2', 'valg', 'fmt', 'side', 'sort', 'cmp'].forEach(k => { if (q && q[k]) st[k] = q[k]; });
+      ['do', 'hv', 'omr', 'omr2', 'valg', 'valg2', 'fmt', 'side', 'sort', 'cmp'].forEach(k => { if (q && q[k]) st[k] = q[k]; });
       return normalize(st);
     }
     function toHash(st) {
       const p = new URLSearchParams();
       p.set('do', st.do); p.set('omr', st.omr); p.set('valg', st.valg);
       if (st.do === 'se' && st.hv !== 'mand') p.set('hv', st.hv);
-      if (st.do === 'sammenlign') p.set('omr2', st.omr2);
+      if (st.do === 'sammenlign') { p.set('omr2', st.omr2); p.set('valg2', st.valg2); }
       if (st.do === 'hente' && st.fmt !== 'excel') p.set('fmt', st.fmt);
       return '#/?' + p.toString();
     }
@@ -201,9 +211,10 @@
     }
     /* to områder ved siden af hinanden */
     function compareRows(A, B, metric, sortMode, la, lb) {
-      const key = metric === 'stem' ? 'share' : 'm';
+      const abs = metric === 'mand' && A.seats === B.seats;
       const ps = {}; A.rows.forEach(r => { ps[r.p] = r; }); B.rows.forEach(r => { if (!ps[r.p]) ps[r.p] = r; });
-      const val = (R, p) => { const r = R.rows.find(x => x.p === p); if (!r) return 0; return metric === 'stem' ? r.share || 0 : (R.seats ? r.m / R.seats * 100 : 0); };
+      const val = (R, p) => { const r = R.rows.find(x => x.p === p); if (!r) return 0; return metric === 'stem' ? r.share || 0 : abs ? r.m : (R.seats ? r.m / R.seats * 100 : 0); };
+      const show = v => abs ? String(v) : fmtP(v), diff = v => abs ? dlt(v) : dlt(v, 'pp');
       const all = Object.keys(ps).map(p => ({ p, name: PN(p), color: D.parties[p].color, a: val(A, p), b: val(B, p), m: Math.max(val(A, p), val(B, p)) }));
       const list = sortMode === 'alpha' ? all.sort((x, y) => x.p.localeCompare(y.p, 'da')) : all.sort((x, y) => y.m - x.m);
       const max = Math.max(1, ...list.map(r => r.m));
@@ -211,8 +222,8 @@
         h('span', { class: 'mid' }, h('span', { class: 'pn' }, r.name),
           h('span', { class: 'bar a' }, h('i', { style: `width:${Math.max(1, r.a / max * 100)}%;background-color:${r.color}` })),
           h('span', { class: 'bar b' }, h('i', { style: `width:${Math.max(1, r.b / max * 100)}%;background-color:${r.color}` }))),
-        h('span', { class: 'val2' }, h('strong', {}, fmtP(r.a)), h('small', {}, fmtP(r.b))),
-        h('span', { class: 'dl', 'aria-label': 'Forskel ' + dlt(r.a - r.b, 'pp') }, dlt(r.a - r.b, 'pp'))))) };
+        h('span', { class: 'val2' }, h('strong', {}, show(r.a)), h('small', {}, show(r.b))),
+        h('span', { class: 'dl' + (abs && r.a !== r.b ? (r.a > r.b ? ' up' : ' dn') : ''), 'aria-label': 'Forskel ' + diff(r.a - r.b) }, diff(r.a - r.b))))), abs };
     }
 
     /* ---------- svar-tekst («lede») ---------- */
@@ -226,10 +237,23 @@
       if (R.turnout) t += ` Valgdeltagelsen var ${fmtP(R.turnout)}.`;
       return t;
     }
-    function ledeCmp(A, B, la, lb, list) {
-      const big = list.slice().sort((x, y) => Math.abs(y.a - y.b) - Math.abs(x.a - x.b))[0];
-      let t = big ? `Største forskel: ${PN(big.p)} (${fmtP(big.a)} i ${la} mod ${fmtP(big.b)} i ${lb}).` : '';
-      if (A.turnout && B.turnout) t += ` Valgdeltagelsen var ${fmtP(A.turnout)} i ${la} og ${fmtP(B.turnout)} i ${lb}.`;
+    /* pa/pb er hele udtryk som «i Ishøj Kommune» eller «ved kommunalvalg 2021» */
+    function ledeCmp(A, B, pa, pb, where) {
+      const top = R => R.rows.slice().sort((x, y) => y.m - x.m || (y.votes || 0) - (x.votes || 0))[0];
+      const mOf = (R, p) => { const r = R.rows.find(x => x.p === p); return r ? r.m : 0; };
+      const shOf = (R, p) => { const r = R.rows.find(x => x.p === p); return r && r.share != null ? r.share : 0; };
+      const tA = top(A), tB = top(B), mand = n => n === 1 ? 'mandat' : 'mandater';
+      let t;
+      if (where) {
+        const mb = mOf(B, tA.p), d = tA.m - mb;
+        t = tA.p === tB.p ? `${PN(tA.p)} fik flest mandater i ${where} ved begge valg: ${tA.m} ${pa} mod ${mb} ${pb}${d === 0 ? ', altså lige mange.' : `, altså ${Math.abs(d)} ${mand(Math.abs(d))} ${d > 0 ? 'flere' : 'færre'}.`}`
+          : `${PN(tA.p)} fik flest mandater ${pa} (${tA.m}), mens ${PN(tB.p)} fik flest ${pb} (${tB.m}).`;
+      } else t = tA.p === tB.p ? `${PN(tA.p)} er største parti begge steder: ${tA.m} af ${A.seats} mandater ${pa} og ${tB.m} af ${B.seats} ${pb}.`
+        : `${PN(tA.p)} er største parti ${pa} med ${tA.m} af ${A.seats} mandater, og ${PN(tB.p)} er største parti ${pb} med ${tB.m} af ${B.seats}.`;
+      const ps = [...new Set(A.rows.concat(B.rows).map(r => r.p))];
+      const big = ps.map(p => ({ p, a: shOf(A, p), b: shOf(B, p) })).sort((x, y) => Math.abs(y.a - y.b) - Math.abs(x.a - x.b))[0];
+      if (big && Math.abs(big.a - big.b) >= 0.1) t += ` Største forskel i stemmeandel: ${PN(big.p)} (${fmtP(big.a)} ${pa} mod ${fmtP(big.b)} ${pb}).`;
+      if (A.turnout && B.turnout) t += ` Valgdeltagelsen var ${fmtP(A.turnout)} ${pa} og ${fmtP(B.turnout)} ${pb}.`;
       return t;
     }
 
@@ -259,7 +283,7 @@
       const svg = GEO.renderMap(Object.assign({}, opts, zoom ? { region: zoom } : {}));
       svg.classList.add('dmap2');
       svg.querySelectorAll('title').forEach(t => t.remove());
-      svg.querySelectorAll('g.reg').forEach(g => { g.setAttribute('fill', '#DCE5E9'); g.setAttribute('stroke', '#F9F9F8'); g.setAttribute('stroke-width', '1.4'); });
+      svg.querySelectorAll('g.reg').forEach(g => { g.setAttribute('fill', '#DCE5E9'); g.setAttribute('stroke', '#9FB1BF'); g.setAttribute('stroke-width', '1'); });
       svg.querySelectorAll('g.reg path[fill]').forEach(p => p.setAttribute('fill', '#DCE5E9'));
       const circles = [...svg.querySelectorAll('circle.bub')];
       circles.forEach(c => { if (c.classList.contains('pending')) { c.setAttribute('fill', '#fff'); c.setAttribute('fill-opacity', '1'); c.setAttribute('stroke', '#B6B5B5'); } else { c.setAttribute('stroke', '#fff'); c.setAttribute('stroke-width', '1'); } });
@@ -280,6 +304,87 @@
       const wrap = h('div', { class: 'mapwrap' }, svg);
       const tip = h('div', { class: 'maptip', hidden: '' });
       wrap.append(tip);
+      /* ---- zoom, flyt og kommunenavne (pilottest 16.11: kortet var for udetaljeret, og man kunne ikke finde sin egen kommune) ---- */
+      const SVGNS = 'http://www.w3.org/2000/svg', FULL = [0, 0, GEO.W, GEO.H], AR = GEO.H / GEO.W, MINW = GEO.W / 14;
+      const ukey = valg + '|' + (cmp ? 'c' : 's');
+      const vb0 = svg.getAttribute('viewBox').split(' ').map(Number);
+      let cur = vb0.slice();
+      const selIds = new Set([a, b].filter(id => id && byId[id]));
+      if (MS.user && MS.userKey === ukey) {
+        cur = MS.user.slice();
+        const first = [...selIds][0], c0 = first && byC[first];
+        if (c0) { const x = +c0.getAttribute('cx'), y = +c0.getAttribute('cy'); if (x < cur[0] || x > cur[0] + cur[2] || y < cur[1] || y > cur[1] + cur[3]) cur = [x - cur[2] / 2, y - cur[3] / 2, cur[2], cur[3]]; }
+        svg.setAttribute('viewBox', cur.map(n => n.toFixed(2)).join(' '));
+      }
+      const lblG = document.createElementNS(SVGNS, 'g'); lblG.setAttribute('class', 'klabels'); svg.append(lblG);
+      const lbls = circles.map(c => { const k = byId[c.dataset.id]; if (!k) return null; const t = document.createElementNS(SVGNS, 'text'); t.setAttribute('class', 'klabel'); t.textContent = k.name; lblG.append(t); return { c, k, t, cx: +c.getAttribute('cx'), cy: +c.getAttribute('cy') }; }).filter(Boolean);
+      const scaleNow = () => { const r = svg.getBoundingClientRect(); return r.width && r.height ? Math.min(r.width / cur[2], r.height / cur[3]) : 1; };
+      const zoomF = () => FULL[2] / cur[2];
+      function paintLabels() {
+        if (!svg.isConnected) return;
+        const sc = scaleNow(), fs = 11.5 / sc, show = zoomF() >= 1.9, placed = [];
+        svg.classList.toggle('zoomed', show);
+        lbls.slice().sort((x, y) => (selIds.has(y.k.id) - selIds.has(x.k.id)) || (+y.c.getAttribute('r') - +x.c.getAttribute('r'))).forEach(L => {
+          const sel = selIds.has(L.k.id), r = +L.c.getAttribute('r');
+          const inView = L.cx >= cur[0] && L.cx <= cur[0] + cur[2] && L.cy >= cur[1] && L.cy <= cur[1] + cur[3];
+          if (!(sel || (show && inView))) { L.t.setAttribute('display', 'none'); return; }
+          const x = L.cx + r + 2.5 / sc, y = L.cy + fs * .36, box = [x - 1 / sc, y - fs, x + L.k.name.length * fs * .56, y + fs * .2];
+          if (!sel && placed.some(q => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])) { L.t.setAttribute('display', 'none'); return; }
+          placed.push(box); L.t.removeAttribute('display');
+          L.t.setAttribute('x', x.toFixed(2)); L.t.setAttribute('y', y.toFixed(2)); L.t.setAttribute('font-size', fs.toFixed(2)); L.t.setAttribute('stroke-width', (3.2 / sc).toFixed(2));
+          L.t.classList.toggle('sel', sel);
+        });
+      }
+      /* boblerne skrumper, når man zoomer, så tætte områder som København kan skilles ad */
+      const baseR = Object.fromEntries(circles.map(c => [c.dataset.id, +c.getAttribute('r') / (zoom ? GEO.ZOOM_SCALE : 1)]));
+      function applyR() {
+        const k = Math.min(1, Math.pow(zoomF(), -.62)), sc = svg.isConnected ? scaleNow() : 0;
+        circles.forEach(c => { let r = baseR[c.dataset.id] * k; if (sc) r = Math.max(r, 3.4 / sc); c.setAttribute('r', r.toFixed(2)); });
+        marks.forEach(([id, c, ring]) => ring.setAttribute('r', (+c.getAttribute('r') + (sc ? 3 / sc : 3 * k)).toFixed(2)));
+      }
+      const zin = h('button', { type: 'button', class: 'mz', 'aria-label': 'Zoom ind', title: 'Zoom ind', onclick: () => zoomBy(.6) }, '+');
+      const zout = h('button', { type: 'button', class: 'mz', 'aria-label': 'Zoom ud', title: 'Zoom ud', onclick: () => zoomBy(1 / .6) }, '−');
+      function setVB(x, y, w) {
+        const cxm = x + w / 2, cym = y + w * AR / 2;
+        w = Math.max(MINW, Math.min(FULL[2], w)); const hh = w * AR;
+        const cx2 = Math.max(0, Math.min(FULL[2], cxm)), cy2 = Math.max(0, Math.min(FULL[3], cym));
+        cur = [cx2 - w / 2, cy2 - hh / 2, w, hh];
+        if (w >= FULL[2] - .01) cur = FULL.slice();
+        svg.setAttribute('viewBox', cur.map(n => n.toFixed(2)).join(' '));
+        MS.user = cur.slice(); MS.userKey = ukey; MS.vb = svg.getAttribute('viewBox');
+        svg.style.touchAction = zoomF() > 1.05 ? 'none' : 'pan-y';
+        zin.disabled = cur[2] <= MINW + .01; zout.disabled = cur[2] >= FULL[2] - .01;
+        applyR(); paintLabels();
+      }
+      const zoomBy = f => setVB(cur[0] + cur[2] * (1 - f) / 2, cur[1] + cur[3] * (1 - f) / 2, cur[2] * f);
+      const toSvg = (cx, cy) => { const m = svg.getScreenCTM(); if (!m) return { x: cur[0] + cur[2] / 2, y: cur[1] + cur[3] / 2 }; const p = svg.createSVGPoint(); p.x = cx; p.y = cy; return p.matrixTransform(m.inverse()); };
+      wrap.addEventListener('wheel', e => {
+        if (window.innerWidth <= 900 && !e.ctrlKey) return;
+        e.preventDefault(); tip.hidden = true;
+        const pt = toSvg(e.clientX, e.clientY), f = e.deltaY < 0 ? .8 : 1.25;
+        setVB(pt.x - (pt.x - cur[0]) * f, pt.y - (pt.y - cur[1]) * f, cur[2] * f);
+      }, { passive: false });
+      let drag = null, moved = false;
+      svg.addEventListener('pointerdown', e => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, v: cur.slice(), id: e.pointerId }; moved = false; });
+      svg.addEventListener('pointermove', e => {
+        if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        if (!moved && Math.hypot(dx, dy) < 5) return;
+        if (!moved) { moved = true; try { svg.setPointerCapture(drag.id); } catch (er) { /* ignorer */ } wrap.classList.add('drag'); tip.hidden = true; }
+        const sc = scaleNow(); setVB(drag.v[0] - dx / sc, drag.v[1] - dy / sc, drag.v[2]);
+      });
+      const endDrag = () => { drag = null; wrap.classList.remove('drag'); };
+      svg.addEventListener('pointerup', endDrag); svg.addEventListener('pointercancel', endDrag);
+      svg.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+      const quick = (t, lab, f) => h('button', { type: 'button', class: 'mq', title: lab, 'aria-label': lab, onclick: f }, t);
+      const [kx, ky] = GEO.P(55.69, 12.43);
+      wrap.append(h('div', { class: 'mapzoom', role: 'group', 'aria-label': 'Zoom på kortet' }, zin, zout),
+        h('div', { class: 'mapquick', role: 'group', 'aria-label': 'Hurtig zoom' },
+          quick('Københavnsområdet', 'Zoom ind på københavnsområdet', () => { log('map-zoom', 'kbh'); setVB(kx - 38, ky - 38 * AR, 76); }),
+          quick('Hele Danmark', 'Vis hele kortet', () => { log('map-zoom', 'alt'); setVB(0, 0, FULL[2]); })));
+      zin.disabled = cur[2] <= MINW + .01; zout.disabled = cur[2] >= FULL[2] - .01; svg.style.touchAction = zoomF() > 1.05 ? 'none' : 'pan-y';
+      applyR();
+      requestAnimationFrame(() => { applyR(); paintLabels(); });
+      if (window.ResizeObserver) { const ro = new ResizeObserver(() => { if (!svg.isConnected) { ro.disconnect(); return; } paintLabels(); }); ro.observe(wrap); }
       circles.forEach(c => {
         const k = byId[c.dataset.id]; if (!k) return;
         const show = () => {
@@ -336,12 +441,12 @@
       const cnt = {}; KOM.forEach(k => { if (counted.has(k.id)) { const p = bigOf(k, valg); cnt[p] = (cnt[p] || 0) + 1; } });
       const legend = h('div', { class: 'maplegend' }, h('span', { class: 'ml-t' }, 'Største parti i kommunen'),
         Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x]).slice(0, 5).map(p => h('span', { class: 'ml-i', title: PN(p) }, letter(p, 'sm'), h('b', {}, String(cnt[p])))),
-        h('span', { class: 'ml-s' }, h('i', { class: 'ml-c1' }), h('i', { class: 'ml-c2' }), 'størrelse = antal vælgere · klik for at vælge'));
+        h('span', { class: 'ml-s' }, h('i', { class: 'ml-c1' }), h('i', { class: 'ml-c2' }), 'størrelse = antal vælgere · klik for at vælge · rul eller brug + for at zoome'));
       return h('div', { class: 'mapbox' }, wrap, legend);
     }
 
     /* ============================ FORSIDEN ============================ */
-    const H1 = { se: 'Hvordan gik valget?', sammenlign: 'Sammenlign to områder', hente: 'Hent valgtal som fil' };
+    const H1 = { se: 'Hvordan gik valget?', sammenlign: 'Sammenlign områder og valg', hente: 'Hent valgtal som fil' };
     function home(q) {
       document.title = 'valg.dk – prototype (version D)';
       ST = fromQuery(q);
@@ -353,33 +458,37 @@
 
       function setHash() { try { history.replaceState(null, '', toHash(ST)); } catch (e) { /* ignorer */ } markNav(); }
       function update(changed, patch) {
+        const old = Object.assign({}, ST);
         Object.assign(ST, patch); const prev = ST.valg;
-        normalize(ST);
+        normalize(ST, changed, old);
         if (ST.omr && byId[ST.omr] && changed === 'omr') saveFoc(ST.omr);
         setHash(); log('sentence', JSON.stringify(ST));
-        drawSentence(changed); drawAnswer();
+        const autoKey = ST.do === 'sammenlign' && old.do === 'sammenlign' ? (old.valg2 !== ST.valg2 && changed !== 'valg2' ? 'valg2' : old.valg !== ST.valg && changed !== 'valg' ? 'valg' : null) : null;
+        drawSentence(changed, autoKey); drawAnswer();
         say.textContent = `Viser ${ST.do === 'se' ? 'resultat' : ST.do === 'sammenlign' ? 'sammenligning' : 'dataudtræk'} for ${areaIn(ST.omr)}.`;
         if (prev !== ST.valg) log('valgskift', ST.valg);
       }
       current = { pick: id => { if (ST.do === 'sammenlign') update('omr2', { omr2: id }); else update('omr', { omr: id }); } };
 
       /* ---- sætningen ---- */
-      function drawSentence(focusKey) {
+      function drawSentence(focusKey, autoKey) {
         sentenceBox.innerHTML = '';
         const doOpts = [{ items: [['se', 'se'], ['sammenlign', 'sammenligne'], ['hente', 'hente']] }];
-        const valgOpts = [{ items: (ST.do === 'se' ? ['kv2025', 'kv2021', 'fv'] : ['kv2025', 'kv2021']).map(v => [v, ELNAME[v]]) }];
+        const valgOpts = [{ label: 'Kommunalvalg', items: KVS.map(v => [v, ELNAME[v]]) }].concat(ST.do === 'se' ? [{ label: 'Folketingsvalg', items: [['fv', ELNAME.fv]] }] : []);
         const hvItems = [['mand', 'mandaterne']].concat(ST.valg === 'fv' && ST.omr !== 'land' ? [] : [['stem', 'stemmerne']], [['valgte', 'de valgte']]);
         const parts = [];
         parts.push('Jeg vil ', slot('Hvad vil du?', doOpts, ST.do, v => update('do', { do: v }), 'do'), ' ');
         if (ST.do === 'se') parts.push(slot('Hvad vil du se?', [{ items: hvItems }], ST.hv, v => update('hv', { hv: v }), 'hv'), ' i ', slot('Område', areaGroups(ST.valg, 'se'), ST.omr, v => update('omr', { omr: v }), 'omr'));
-        else if (ST.do === 'sammenlign') parts.push(slot('Første område', areaGroups(ST.valg, 'sammenlign'), ST.omr, v => update('omr', { omr: v }), 'omr'), ' med ', slot('Andet område', areaGroups(ST.valg, 'sammenlign'), ST.omr2, v => update('omr2', { omr2: v }), 'omr2'));
+        else if (ST.do === 'sammenlign') parts.push(slot('Første område', areaGroups(ST.valg, 'sammenlign'), ST.omr, v => update('omr', { omr: v }), 'omr'), ' ved ', slot('Første valg', valgOpts, ST.valg, v => update('valg', { valg: v }), 'valg'),
+          ' med ', slot('Andet område', areaGroups(ST.valg, 'sammenlign'), ST.omr2, v => update('omr2', { omr2: v }), 'omr2'), ' ved ', slot('Andet valg', valgOpts, ST.valg2, v => update('valg2', { valg2: v }), 'valg2'));
         else parts.push('tallene for ', slot('Område', areaGroups(ST.valg, 'hente'), ST.omr, v => update('omr', { omr: v }), 'omr'));
-        parts.push(' ved ', slot('Valg', valgOpts, ST.valg, v => update('valg', { valg: v }), 'valg'));
+        if (ST.do !== 'sammenlign') parts.push(' ved ', slot('Valg', valgOpts, ST.valg, v => update('valg', { valg: v }), 'valg'));
         if (ST.do === 'hente') parts.push(' som ', slot('Filformat', [{ items: [['excel', 'Excel-fil'], ['csv', 'CSV-fil']] }], ST.fmt, v => update('fmt', { fmt: v }), 'fmt'));
         parts.push('.');
         sentenceBox.append(h('p', { class: 'sent' }, parts));
         const t1 = $('#dh1', el); if (t1) t1.textContent = H1[ST.do];
         document.title = H1[ST.do] + ' – valg.dk prototype (version D)';
+        if (autoKey && !RM) { const a = $(`[data-k="${autoKey}"]`, sentenceBox); if (a) a.animate([{ boxShadow: '0 0 0 0 rgba(0,130,62,.75)' }, { boxShadow: '0 0 0 12px rgba(0,130,62,0)' }], { duration: 900, iterations: 2, easing: 'ease-out' }); }
         if (focusKey) { const f = $(`[data-k="${focusKey}"]`, sentenceBox); if (f) { f.focus(); if (!RM) f.animate([{ transform: 'scale(1.08)', boxShadow: '0 0 0 0 rgba(220,206,117,.95)' }, { transform: 'scale(1)', boxShadow: '0 0 0 10px rgba(220,206,117,0)' }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' }); } }
       }
 
@@ -388,7 +497,7 @@
       function paintMap(root) {
         const fv = ST.valg === 'fv', cmp = ST.do === 'sammenlign';
         const onKom = id => { log('map', id); if (cmp) update('omr2', { omr2: id }); else update('omr', { omr: id }); };
-        const opts = { valg: fv ? KV : ST.valg, metric: 'party', counted: ST.valg === 'kv2025' ? isCounted : null, onSelect: onKom, onRegion: rid => { log('map', rid); if (cmp) update('omr2', { omr2: rid }); else update('omr', { omr: rid }); } };
+        const opts = { valg: fv ? KV : ST.valg, metric: 'party', borders: true, counted: ST.valg === 'kv2025' ? isCounted : null, onSelect: onKom, onRegion: rid => { log('map', rid); if (cmp) update('omr2', { omr2: rid }); else update('omr', { omr: rid }); } };
         if (fv) { opts.fillOf = k => D.parties[fvBig[k.id]].color; }
         root.append(fancyMap(opts, ST.omr, cmp ? ST.omr2 : null, cmp), h('p', { class: 'mapnote' }, cmp ? 'Klik på en kommune for at skifte det andet område.' : 'Klik på en kommune eller region for at se dens resultat.'));
       }
@@ -404,25 +513,37 @@
         const sortSeg = (extra) => h('div', { class: 'seg2', role: 'group', 'aria-label': 'Sortér partierne' }, [['size', 'Størst først'], ['alpha', 'A–Å']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(ST.sort === v), onclick: () => { ST.sort = v; drawAnswer(); } }, t)), extra || null);
 
         if (ST.do === 'se') {
-          setLede(ST.hv === 'valgte' && !A.pending ? `Her er de valgte i ${areaIn(ST.omr)}, med flest personlige stemmer først.` : ledeSe(ST.omr, ST.valg, A));
+          setLede(ST.hv === 'valgte' && !A.pending ? (ST.valg === 'kv2025' || ST.valg === 'fv' ? `Her er de valgte i ${areaIn(ST.omr)}, med flest personlige stemmer først.` : `Prototypen har kun kandidater til Kommunalvalg 2025, ikke til ${lowerFirst(ELNAME[ST.valg])}.`) : ledeSe(ST.omr, ST.valg, A));
           if (A.pending) left.append(h('div', { class: 'empty' }, h('strong', {}, 'Optælles stadig'), h('span', {}, 'Resultatet kommer, så snart kommunen er talt op.')));
           else if (ST.hv === 'valgte') left.append(electedList(ST.omr, ST.valg));
-          else left.append(h('div', { class: 'ctl' }, sortSeg()), ballot(A.rows, ST.hv, ST.sort));
+          else {
+            const pv = isKV(ST.valg) ? ELS[ST.valg].prev : null;
+            const cmpPrev = pv ? h('a', { class: 'dbtn small ghost cmpprev', href: toHash({ do: 'sammenlign', omr: ST.omr, valg: ST.valg, omr2: ST.omr, valg2: pv }), onclick: () => log('sammenlign-forrige', ST.omr) }, `Sammenlign med ${yr(pv)}`) : null;
+            const what = ST.hv === 'stem' ? 'Stemmeandel' : 'Mandater';
+            left.append(h('div', { class: 'ctl' }, sortSeg(), cmpPrev),
+              h('p', { class: 'bcap' }, h('strong', {}, `${what} ved ${lowerFirst(ELNAME[ST.valg])}`), pv ? ` · tallet til højre er ændringen siden ${yr(pv)}` : ''),
+              ballot(A.rows, ST.hv, ST.sort));
+          }
           {
-            const tabs = h('div', { class: 'seg2', role: 'group', 'aria-label': 'Vis til højre' }, [['kort', 'Kort'], ['prikker', 'Mandater']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(sideOf(ST) === v), onclick: () => { ST.side = v; drawAnswer(); } }, t)));
+            const tabs = h('div', { class: 'seg2', role: 'group', 'aria-label': 'Vis til højre' }, [['kort', 'Kort'], ['prikker', 'Mandatfordeling']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(sideOf(ST) === v), onclick: () => { ST.side = v; drawAnswer(); } }, t)));
             const host = h('div', { class: 'dview' });
             if (sideOf(ST) === 'prikker' && !A.pending) host.append(h('div', { class: 'dots' }, hemicycle(seatsOf(A), { label: 'Mandatfordeling: ' + A.rows.filter(r => r.m).sort((a, b) => b.m - a.m).map(r => `${r.p} ${r.m}`).join(', ') })));
             else paintMap(host);
             right.append(h('div', { class: 'ctl right' }, tabs), host);
           }
         } else if (ST.do === 'sammenlign') {
-          const B = resultOf(ST.omr2, ST.valg), la = areaIn(ST.omr), lb = areaIn(ST.omr2);
+          const B = resultOf(ST.omr2, ST.valg2), sameArea = ST.omr === ST.omr2, sameValg = ST.valg === ST.valg2;
+          /* året står altid ved hver side, så man ved, hvilket valg man ser (pilottest 16.11) */
+          const la = sameValg ? areaName(ST.omr) : sameArea ? ELNAME[ST.valg] : `${areaName(ST.omr)} · ${yr(ST.valg)}`;
+          const lb = sameValg ? areaName(ST.omr2) : sameArea ? ELNAME[ST.valg2] : `${areaName(ST.omr2)} · ${yr(ST.valg2)}`;
+          const pa = sameValg ? 'i ' + areaIn(ST.omr) : sameArea ? 'ved ' + lowerFirst(ELNAME[ST.valg]) : `i ${areaIn(ST.omr)} ved ${lowerFirst(ELNAME[ST.valg])}`;
+          const pb = sameValg ? 'i ' + areaIn(ST.omr2) : sameArea ? 'ved ' + lowerFirst(ELNAME[ST.valg2]) : `i ${areaIn(ST.omr2)} ved ${lowerFirst(ELNAME[ST.valg2])}`;
           if (A.pending || B.pending) { setLede('Et af områderne er ikke optalt endnu. Sammenligningen vises, når begge er talt op.'); left.append(h('div', { class: 'empty' }, h('strong', {}, 'Optælles stadig'), h('span', {}, 'Vælg et område, der er optalt, eller afslut simulationen.'))); }
           else {
             const metric = ST.cmp, c = compareRows(A, B, metric, ST.sort, la, lb);
-            setLede(ledeCmp(A, B, la, lb, c.list));
+            setLede(ledeCmp(A, B, pa, pb, sameArea ? areaIn(ST.omr) : null));
             const mseg = h('div', { class: 'seg2', role: 'group', 'aria-label': 'Sammenlign på' }, [['stem', 'Stemmer'], ['mand', 'Mandater']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(ST.cmp === v), onclick: () => { ST.cmp = v; drawAnswer(); } }, t)));
-            left.append(h('div', { class: 'ctl' }, mseg, sortSeg()), h('div', { class: 'cmp-key' }, h('span', { class: 'k a' }, la + ' (øverst)'), h('span', { class: 'k b' }, lb), h('span', { class: 'kn' }, 'Andele, så områder af forskellig størrelse kan sammenlignes')), c.el);
+            left.append(h('div', { class: 'ctl' }, mseg, sortSeg()), h('div', { class: 'cmp-key' }, h('span', { class: 'k a' }, la + ' (øverst)'), h('span', { class: 'k b' }, lb), h('span', { class: 'kn' }, metric === 'stem' ? 'Andel af stemmerne' : c.abs ? 'Antal mandater' : 'Andel af mandaterne, så områder af forskellig størrelse kan sammenlignes')), c.el);
           }
           const host = h('div', { class: 'dview' }); paintMap(host); right.append(host);
         } else {
@@ -446,7 +567,7 @@
             sel.addEventListener('change', () => { update('omr', { omr: sel.value }); refocus('#hsel'); });
             sub1 = h('div', { class: 'subpick' }, h('label', { for: 'hsel' }, scope === 'regkom' ? 'Region' : 'Kommune'), sel);
           }
-          const step2 = h('div', { class: 'seg2', role: 'group', 'aria-label': 'Hvilket valg?' }, ['kv2025', 'kv2021'].map(v => h('button', { type: 'button', 'data-opt': 'v-' + v, 'aria-pressed': String(ST.valg === v), onclick: () => { update('valg', { valg: v }); refocus(`[data-opt="v-${v}"]`); } }, ELNAME[v])));
+          const step2 = h('div', { class: 'seg2', role: 'group', 'aria-label': 'Hvilket kommunalvalg?' }, KVS.map(v => h('button', { type: 'button', 'data-opt': 'v-' + v, 'aria-pressed': String(ST.valg === v), 'aria-label': ELNAME[v], onclick: () => { update('valg', { valg: v }); refocus(`[data-opt="v-${v}"]`); } }, String(yr(v)))));
           const step3 = h('div', { class: 'opts two', role: 'group', 'aria-label': 'Hvilket format?' },
             opt('excel', 'Excel', 'Åbner direkte i dansk Excel (semikolon og decimalkomma)', () => update('fmt', { fmt: 'excel' }), ST.fmt === 'excel'),
             opt('csv', 'CSV', 'Komma og decimalpunktum – til R, Python eller SPSS', () => update('fmt', { fmt: 'csv' }), ST.fmt === 'csv'));
@@ -455,7 +576,7 @@
             const text = ST.fmt === 'excel' ? csv(HEAD, rows) : csv(HEAD, rows, { sep: ',', dec: '.' });
             download(`valg-${ids}-${ST.valg}.csv`, text); say.textContent = 'Filen er hentet.'; btn.classList.add('done'); btn.querySelector('.bl').textContent = 'Filen er hentet'; log('hent', ids + ' ' + ST.valg);
           } }, h('span', { class: 'bl' }, `Hent ${ST.fmt === 'excel' ? 'Excel-filen' : 'CSV-filen'}`), h('span', { class: 'bs' }, `${fmtN(rows.length)} rækker · ${HEAD.length} kolonner`));
-          left.append(h('div', { class: 'hent2' }, stepEl(1, 'Hvilke tal?', step1, sub1), stepEl(2, 'Hvilket valg?', step2), stepEl(3, 'Hvilket format?', step3),
+          left.append(h('div', { class: 'hent2' }, stepEl(1, 'Hvilke tal?', step1, sub1), stepEl(2, 'Hvilket kommunalvalg?', step2), stepEl(3, 'Hvilket format?', step3),
             h('div', { class: 'hgo' }, btn, running ? h('p', { class: 'warn-note' }, 'Optællingen kører (simulation). Hent først filen, når den er afsluttet, så den ikke indeholder halve tal.') : h('p', { class: 'mapnote' }, 'Eksempeldata, ikke officielle tal.'))));
           /* forhåndsvisning: kun de kolonner, der skal læses, ingen vandret scroll, og et samlet overblik øverst */
           const areas = [...new Set(rows.map(r => r[0]))];
@@ -498,7 +619,7 @@
           const q = Math.floor(LIVE.n / total * 4); if (q > liveSay) { liveSay = q; say.textContent = `${LIVE.n} af ${total} kommuner er optalt.`; }
         } else {
           status.append(h('span', { class: 'tag final' }, done ? 'Simulation slut' : ST.valg === 'fv' ? 'Eksempeldata' : 'Endeligt resultat'),
-            h('span', { class: 'st-t' }, ST.valg === 'fv' ? 'Opdigtet folketingsvalg til prototypen' : `Valgdag ${ELS[ST.valg].date} · Afsender: Valg.dk (prototype)`));
+            h('span', { class: 'st-t' }, ST.valg === 'fv' ? 'Opdigtet folketingsvalg til prototypen' : ST.do === 'sammenlign' && ST.valg2 !== ST.valg ? `Valgdage ${ELS[ST.valg].date} og ${ELS[ST.valg2].date} · Afsender: Valg.dk (prototype)` : `Valgdag ${ELS[ST.valg].date} · Afsender: Valg.dk (prototype)`));
         }
         const acts = h('div', { class: 'acts' });
         const mk = (t, f, cls) => h('button', { class: 'dbtn small ' + (cls || ''), type: 'button', onclick: f }, t);
@@ -507,10 +628,11 @@
           else { if (!done) acts.append(mk(LIVE.paused ? 'Fortsæt' : 'Pause', live.pause, 'ghost'), mk('Spring til slut', live.skip, 'ghost opt')); acts.append(mk('Afslut', live.stop, 'ghost')); }
         }
         if (ST.do === 'sammenlign' && !A.pending) {
-          const B = resultOf(ST.omr2, ST.valg);
+          const B = resultOf(ST.omr2, ST.valg2);
           if (!B.pending) acts.append(h('button', { class: 'dbtn small', type: 'button', onclick: () => {
-            const rows = exportRows(ST.omr, ST.valg, true).concat(exportRows(ST.omr2, ST.valg, true));
-            download(`sammenligning-${ST.omr}-${ST.omr2}-${ST.valg}.csv`, csv(HEAD, rows)); say.textContent = 'Filen med sammenligningen er hentet.'; log('hent', 'sammenligning ' + ST.omr + ' ' + ST.omr2);
+            const tag = v => r => [ELNAME[v]].concat(r);
+            const rows = exportRows(ST.omr, ST.valg, true).map(tag(ST.valg)).concat(exportRows(ST.omr2, ST.valg2, true).map(tag(ST.valg2)));
+            download(`sammenligning-${ST.omr}-${ST.valg}-${ST.omr2}-${ST.valg2}.csv`, csv(['Valg'].concat(HEAD), rows)); say.textContent = 'Filen med sammenligningen er hentet.'; log('hent', 'sammenligning ' + ST.omr + ' ' + ST.valg + ' ' + ST.omr2 + ' ' + ST.valg2);
           } }, h('span', {}, h('span', { class: 'lg' }, 'Hent sammenligningen (Excel)'), h('span', { class: 'sh' }, 'Hent (Excel)'))));
         }
         if (ST.do === 'se' && !A.pending) {
@@ -527,7 +649,7 @@
         if (valg === 'fv') pool = allFV.filter(x => x.elected && (id === 'land' || x.sk === id));
         else { const a = H.getArea(id), ids = new Set(a.kommuner.map(k => k.id)); pool = allKV.filter(x => x.elected && ids.has(x.kom) && (valg !== 'kv2025' || isCounted(x.kom))); }
         pool = pool.sort((a, b) => b.votes - a.votes);
-        if (valg === 'kv2021') return h('div', { class: 'empty' }, h('strong', {}, 'Ingen kandidatdata for 2021'), h('span', {}, 'Kandidaterne i prototypen hører til Kommunalvalg 2025.'));
+        if (valg !== 'kv2025' && valg !== 'fv') return h('div', { class: 'empty' }, h('strong', {}, `Ingen kandidatdata for ${yr(valg)}`), h('span', {}, 'Kandidaterne i prototypen hører kun til Kommunalvalg 2025.'));
         if (!pool.length) return h('div', { class: 'empty' }, h('strong', {}, 'Ingen valgt endnu'), h('span', {}, 'Optællingen er lige begyndt.'));
         const shown = pool.slice(0, 40);
         return h('div', { class: 'elected' }, h('ol', { class: 'ballot ev' }, shown.map(x => h('li', { class: 'row' }, letter(x.p),
@@ -536,9 +658,10 @@
       }
 
       /* ---- sammensætning ---- */
-      const finder = S.searchBox({ placeholder: 'Søg kommune eller kandidat', id: 'dq', onKommune: id => { finder.inp.value = ''; current.pick(id); } });
+      const finder = S.searchBox({ placeholder: 'Kommune, kandidat eller parti', id: 'dq', onKommune: id => { finder.inp.value = ''; current.pick(id); } });
       finder.form.classList.add('dfind');
-      el.append(h('div', { class: 'dtop' }, h('div', { class: 'dtitle' }, h('h1', { id: 'dh1' }, 'Hvordan gik valget?'), finder.form), sentenceBox), answer, say);
+      el.append(h('div', { class: 'dtop' }, h('div', { class: 'dtitle' }, h('h1', { id: 'dh1' }, 'Hvordan gik valget?')),
+        h('div', { class: 'sent-row' }, sentenceBox, h('div', { class: 'dfind-wrap' }, h('label', { class: 'or', for: 'dq' }, 'eller søg'), finder.form))), answer, say);
       drawSentence(); drawAnswer(); setHash();
       const sub = () => { if (!el.isConnected) { LIVE.subs.delete(sub); return; } drawAnswer(); };
       LIVE.subs.add(sub);

@@ -86,6 +86,16 @@
       if (opts.onSelect) { c.style.cursor = 'pointer'; c.addEventListener('click', e => { e.stopPropagation(); opts.onSelect(k.id, regionId(k)); }); }
       gC.append(c);
     });
+    /* regionsgrænser som streger (kun når opts.borders er sat; A og B bruger det ikke) */
+    if (opts.borders) {
+      defs.append(el('clipPath', { id: id + 'J' }, el('path', { d: d(JUT) })));
+      defs.append(el('clipPath', { id: id + 'Z' }, el('path', { d: d(ZEA) })));
+      const gB = el('g', { class: 'borders', fill: 'none', 'pointer-events': 'none' });
+      const gJ = el('g', { 'clip-path': `url(#${id}J)` });
+      [y1, y2].forEach(y => gJ.append(el('path', { d: `M0,${y.toFixed(1)}H${W}` })));
+      gB.append(gJ, el('g', { 'clip-path': `url(#${id}Z)` }, el('path', { d: d(HOVED_CLIP) })));
+      svg.append(gB);
+    }
     svg.append(gC);
     if (!zoom && !opts.plain) REGIONS.forEach(r => { const [x, y] = P(r.label[0], r.label[1]); svg.append(el('text', { x, y, 'text-anchor': 'middle', class: 'rlabel' }, r.short)); });
     if (zoom) {
@@ -125,5 +135,5 @@
     return wrap;
   }
 
-  window.GEO = { renderMap, legend, REGIONS, regionId, ZOOM_SCALE: 0.62 };
+  window.GEO = { renderMap, legend, REGIONS, regionId, ZOOM_SCALE: 0.62, P, W, H };
 })();
