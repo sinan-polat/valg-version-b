@@ -791,3 +791,7 @@ body[data-ver="d"] .ballot.both .row,body[data-ver="d"] .ballot.cmp .row{flex:1 
 @media (min-width:901px) and (max-height:760px){.cmp-key .kn-tip{display:none}}
 /* først kortes simulationsknappen, så de øvrige knapper */
 .dstrip.short .acts .ghost .lg,.dstrip.shorter .acts .lg{display:none}.dstrip.short .acts .ghost .sh,.dstrip.shorter .acts .sh{display:inline}
+/* Runde 10: kommunefeltet i Hent data er et felt med søgning – det ligner en almindelig liste med et søgeikon */
+body[data-ver="d"] .subpick .slot.ksel{font:400 15px/1.2 var(--font);background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233F5061' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 10px 50%/16px;border:1px solid var(--hair2);border-radius:8px;padding:8px 10px 8px 34px;min-height:40px;min-width:230px;justify-content:space-between;margin:0;box-shadow:none}
+body[data-ver="d"] .subpick .slot.ksel:hover{border-color:var(--slate,#3F5061)}
+body[data-ver="d"] .subpick .slot.ksel .chev{width:12px}

@@ -150,7 +150,7 @@
         const all = groups.reduce((n, g) => n + g.items.length, 0), withSearch = all > 10;
         let grp = groups;
         const foc = loadFoc();
-        if ((key === 'omr' || key === 'omr2') && foc && foc !== val && groups.some(g => g.items.some(([v]) => v === foc))) grp = [{ label: 'Din kommune', items: [[foc, byId[foc].name]] }].concat(groups);
+        if ((key === 'omr' || key === 'omr2' || key === 'hk') && foc && foc !== val && groups.some(g => g.items.some(([v]) => v === foc))) grp = [{ label: 'Din kommune', items: [[foc, byId[foc].name]] }].concat(groups);
         const lid = 'sp-' + key, mobile = matchMedia('(max-width:600px)').matches;
         const list = h('ul', { class: 'sp-list', role: 'listbox', id: lid, 'aria-label': label, tabindex: withSearch ? null : '-1' });
         const inp = withSearch ? h('input', { type: 'text', class: 'sp-q', placeholder: 'Skriv for at søge …', 'aria-label': 'Søg i ' + label.toLowerCase(), role: 'combobox', 'aria-controls': lid, 'aria-expanded': 'true', 'aria-autocomplete': 'list', autocomplete: 'off' }) : null;
@@ -681,7 +681,7 @@
           const refocus = sel => requestAnimationFrame(() => { const f = answer.querySelector(sel); if (f) f.focus(); });
           const opt = (k, t, sub, on, pressed) => sub === '' ? h('button', { type: 'button', 'data-opt': k, 'aria-pressed': String(pressed), onclick: () => { if (!['excel', 'csv'].includes(k)) hentStage = 2; on(); refocus(`[data-opt="${k}"]`); } }, t) : h('button', { type: 'button', class: 'opt', 'data-opt': k, 'aria-pressed': String(pressed), onclick: () => { if (!['excel', 'csv'].includes(k)) hentStage = 2; on(); refocus(`[data-opt="${k}"]`); } }, h('strong', {}, t), h('small', {}, sub));
           const firstReg = REG[REG.findIndex(r => r.id === 'region-hovedstaden')] || REG[0];
-          const TAL = { land: 'Ét samlet tal pr. parti.', reg: 'Ét tal pr. parti pr. region.', kom: 'Ét tal pr. parti pr. kommune – til statistik.', regkom: 'Ét tal pr. parti pr. kommune i regionen.', en: 'Kun tallene for kommunen.' };
+          const TAL = { land: 'Ét samlet tal pr. parti.', reg: 'Ét tal pr. parti pr. region.', kom: 'Ét tal pr. parti pr. kommune – til statistik.', regkom: 'Ét tal pr. parti pr. kommune i regionen.', en: 'Kun tallene for kommunen. Tryk på feltet, og skriv kommunens navn.' };
           const step1 = h('div', { class: 'seg2 wrap tal', role: 'group', 'aria-label': 'Hvilke tal?' },
             opt('land', 'Hele landet', '', () => update('omr', { omr: 'land' }), stage > 1 && scope === 'land'),
             opt('reg', '5 regioner', '', () => update('omr', { omr: 'alle-reg' }), stage > 1 && scope === 'reg'),
@@ -691,8 +691,10 @@
           let sub1 = null;
           if (stage > 1 && (scope === 'regkom' || scope === 'en')) {
             const items = scope === 'regkom' ? REG.map(r => [r.id, r.name]) : komSorted.map(k => [k.id, k.name]);
-            const sel = h('select', { class: 'dsel', id: 'hsel' }, items.map(([v, t]) => { const o = h('option', { value: v }, t); if (v === ids) o.selected = true; return o; }));
-            sel.addEventListener('change', () => { update('omr', { omr: sel.value }); refocus('#hsel'); });
+            /* runde 10: kommunen vælges i et felt med søgning (98 kommuner er for mange at scrolle i); regionen er stadig en almindelig liste */
+            let sel;
+            if (scope === 'en') { sel = slot('Kommune', [{ items }], ids, v => { update('omr', { omr: v }); refocus('#hsel'); }, 'hk'); sel.id = 'hsel'; sel.classList.add('dsel', 'ksel'); }
+            else { sel = h('select', { class: 'dsel', id: 'hsel' }, items.map(([v, t]) => { const o = h('option', { value: v }, t); if (v === ids) o.selected = true; return o; })); sel.addEventListener('change', () => { update('omr', { omr: sel.value }); refocus('#hsel'); }); }
             sub1 = h('div', { class: 'subpick' }, h('label', { for: 'hsel' }, scope === 'regkom' ? 'Region' : 'Kommune'), sel);
           }
           const tNow = typeOf(ST.valg);

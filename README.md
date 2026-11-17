@@ -93,6 +93,7 @@ UX-gennemgangen med bots, friktionstabel og Dommerens vurdering ligger i `docs/u
 * **Valgtypen følger med i sammenligningen:** Skifter man valgtype på den ene side, skifter den anden side selv til samme type, og feltet blinker grønt (skærmlæsere får besked). Sammenlignes to områder ved samme valg, følges de ad (Folketingsvalg 2026 → Kommunalvalg 2025 på begge sider). Sammenlignes to valg, vælges nærmeste valg af typen – ældre på anden side (Kommunalvalg 2025 → Kommunalvalg 2021), nyere på første side. Typer kan ikke længere blandes via felterne.
 * **Mobil:** Sammenligningens to linjer bryder i stedet for at blive skåret af, og «Stemmer/Mandater» og sortering står på én linje. De to tal pr. parti («16,2 % · 44,0 %») knækker ikke.
 * **Lave skærme (1280×680):** Partinøglen over sammenligningen knækker ikke; tippet «peg på en række …» skjules. Knækker status-linjen under svaret, bruges knappernes korte tekster, så rækkerne får pladsen. To valgdage skrives uden ugedag.
+* **Hent data → Én kommune:** Kommunen vælges i et felt med søgning (skriv «høje» → Høje-Taastrup) i stedet for en liste med 98 kommuner. Din kommune står øverst. Regionen er stadig en almindelig liste (kun 5).
 * **Konsol:** favicon (img/valg.svg) er tilføjet, så konsollen er fri for 404-fejl.
 
 ### Runde 7–8 (17. november 2026): mindre at klikke, mere overblik
