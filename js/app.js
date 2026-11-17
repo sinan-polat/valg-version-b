@@ -10,6 +10,28 @@
   const log = (t, d) => { if (window.VLOG) window.VLOG(t, d); };
   const COL = ['#0B4FBF', '#E6732F', '#12998F'];
   const DEFAULT_VALG = 'kv2025';
+  /* valgtyper (data.js → types): folketingsvalg, kommunalvalg, regionsrådsvalg, Europa-Parlamentsvalg, folkeafstemning */
+  const TYPES = D.types || { kv: { name: 'Kommunalvalg', seatLevels: ['land', 'region', 'kommune'] } };
+  const TYPE_ORDER = ['ft', 'kv', 'rv', 'ep', 'fa'].filter(t => TYPES[t]);
+  const typeOf = v => (ELS[v] || {}).type || 'kv';
+  const elsOfType = t => Object.keys(ELS).filter(v => typeOf(v) === t);
+  /* har valget mandater på dette niveau? (land, region, kommune) */
+  const seatsAt = (v, level) => (TYPES[typeOf(v)] || TYPES.kv).seatLevels.includes(level === 'storkreds' ? 'land' : level);
+  const isFA = v => typeOf(v) === 'fa';
+  const capFirst = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const dayDate = v => ELS[v].weekday ? `${capFirst(ELS[v].weekday)} d. ${ELS[v].date}` : ELS[v].date;
+  const yearOfV = v => (String(ELS[v].date).match(/\d{4}/) || [''])[0];
+  /* valgvælger: først typen, så årene for den type */
+  function valgPills(cur, linkFor) {
+    const t = typeOf(cur);
+    return h('div', { class: 'vpick', style: 'margin-top:20px' },
+      h('div', { class: 'pills', role: 'group', 'aria-label': 'Type valg' }, TYPE_ORDER.map(tt => { const to = tt === t ? cur : elsOfType(tt)[0]; return h('a', { class: 'pill' + (tt === t ? ' active' : ''), href: linkFor(to), 'aria-current': tt === t ? 'true' : null }, TYPES[tt].name); })),
+      h('div', { class: 'pills', style: 'margin-top:8px', role: 'group', 'aria-label': TYPES[t].name + ': vælg år' }, elsOfType(t).map(id => h('a', { class: 'pill' + (id === cur ? ' active' : ''), href: linkFor(id), 'aria-current': id === cur ? 'true' : null, 'aria-label': ELS[id].name }, yearOfV(id)))));
+  }
+  /* radioknapper grupperet efter type (find resultat, sammenlign, eksport) */
+  function valgGroups(make) {
+    return TYPE_ORDER.map(t => h('div', { class: 'vgroup', style: 'display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-bottom:8px' }, h('span', { style: 'min-width:170px;font-weight:700;font-size:14px' }, TYPES[t].name), elsOfType(t).map(id => make(id, yearOfV(id)))));
+  }
   const isA = window.VVER === 'a'; // version A = nuværende struktur (valgtype først)
   const isC = window.VVER === 'c' || window.VVER === 'd'; // version C (og D) bruger valgaften, kredse og kandidater
   document.body.dataset.ver = window.VVER;
@@ -118,7 +140,7 @@
     const prev = ELS[valg].prev ? k.results[ELS[valg].prev] : null;
     return Object.keys(R.votes).filter(p => R.votes[p] > 0).map(p => ({
       p, name: D.parties[p].name, color: D.parties[p].color, votes: R.votes[p], share: R.votes[p] / R.valid * 100,
-      m: (R.mandates || {})[p] || 0, d: prev && prev.mandates && R.mandates ? (R.mandates[p] || 0) - (prev.mandates[p] || 0) : null,
+      m: (R.mandates || {})[p] || 0, d: prev && Object.keys(prev.mandates || {}).length && Object.keys(R.mandates || {}).length ? (R.mandates[p] || 0) - (prev.mandates[p] || 0) : null,
       dv: prev ? R.votes[p] - (prev.votes[p] || 0) : null, ds: prev ? R.votes[p] / R.valid * 100 - (prev.votes[p] || 0) / prev.valid * 100 : null,
     }));
   }
@@ -187,7 +209,7 @@
   /* ---------- partier ---------- */
   function searchParties(q) {
     const n = q.toLowerCase().trim(); if (!n) return [];
-    return Object.entries(D.parties).filter(([p, v]) => v.name.toLowerCase().includes(n) || (n.length === 1 && p.toLowerCase() === n)).sort((x, y) => (y[1].name.toLowerCase().startsWith(n) - x[1].name.toLowerCase().startsWith(n))).map(([p, v]) => ({ type: 'parti', id: p, label: v.name + ' (' + p + ')', meta: 'Parti' }));
+    return Object.entries(D.parties).filter(([p, v]) => !v.answer && v.name.toLowerCase().includes(n) || (n.length === 1 && p.toLowerCase() === n)).sort((x, y) => (y[1].name.toLowerCase().startsWith(n) - x[1].name.toLowerCase().startsWith(n))).map(([p, v]) => ({ type: 'parti', id: p, label: v.name + ' (' + p + ')', meta: 'Parti' }));
   }
   function parti(parts, q) {
     const p = parts[1], P = D.parties[p];
@@ -213,10 +235,10 @@
     const el = h('div', { class: 'page wrap' }, crumb({ t: 'Forside', href: '#/' }, { t: 'Valgresultater', href: '#/find' }, { t: P.name }));
     el.append(h('div', { class: 'titlerow' }, h('span', { class: 'pletter', style: `background:${P.color};width:40px;height:40px;font-size:20px`, 'aria-hidden': 'true' }, p), h('h1', {}, P.name), h('span', { class: 'badge' }, 'Endeligt resultat')));
     el.append(h('p', { class: 'lead' }, `${ELS[valg].name} · hele landet`));
-    el.append(h('div', { class: 'pills', style: 'margin-top:20px', role: 'group', 'aria-label': 'Skift valg' }, Object.entries(ELS).map(([id, e]) => h('a', { class: 'pill' + (id === valg ? ' active' : ''), href: href('/parti/' + p, { valg: id }), 'aria-current': id === valg ? 'true' : null }, e.name))));
+    el.append(valgPills(valg, id => href('/parti/' + p, { valg: id })));
     if (!votes) { el.append(h('p', { class: 'panel', style: 'margin-top:24px' }, `${P.name} fik ingen stemmer ved ${ELS[valg].name}.`)); return el; }
     el.append(h('section', { class: 'panel', style: 'margin-top:26px', 'aria-label': 'Nøgletal' }, h('div', { class: 'kpis', style: 'margin-top:0' },
-      h('div', { class: 'stat main' }, h('div', { class: 'lbl' }, 'Mandater i alt'), h('div', { class: 'val' }, fmtN(m))),
+      h('div', { class: 'stat main' }, h('div', { class: 'lbl' }, 'Mandater i alt'), h('div', { class: 'val' }, seatsAt(valg, 'land') ? fmtN(m) : '–')),
       h('div', { class: 'stat' }, h('div', { class: 'lbl' }, 'Stemmeandel'), h('div', { class: 'val' }, fmtP(votes / R.valid * 100))),
       h('div', { class: 'stat' }, h('div', { class: 'lbl' }, 'Ændring i mandater'), h('div', { class: 'val' }, m0 == null ? '–' : sgn(m - m0))),
       h('div', { class: 'stat' }, h('div', { class: 'lbl' }, 'Stemmer'), h('div', { class: 'val' }, fmtN(votes))))));
@@ -255,12 +277,12 @@
       const list = id === 'land' ? KOM : KOM.filter(k => regOf(k) === id);
       const rg = REG.find(r => r.id === id);
       a = { id, type: id === 'land' ? 'land' : 'region', label: id === 'land' ? 'Hele landet' : rg.name, short: id === 'land' ? 'Hele landet' : rg.short, kommuner: list, seats: list.reduce((t, k) => t + k.seats, 0), results: {} };
-      Object.keys(ELS).forEach(v => { a.results[v] = aggregate(list, v); });
+      Object.keys(ELS).forEach(v => { a.results[v] = aggregate(list, v); const sb = ELS[v].seatsBy; if (sb) a.results[v].mandates = Object.assign({}, sb[id] || {}); });
     }
     if (a) areaCache[id] = a;
     return a;
   }
-  const biggest = (a, valg) => { const R = a.results[valg]; return Object.keys(R.mandates).reduce((x, y) => (R.mandates[y] > R.mandates[x] || (R.mandates[y] === R.mandates[x] && R.votes[y] > R.votes[x])) ? y : x); };
+  const biggest = (a, valg) => { const R = a.results[valg]; if (!Object.keys(R.mandates || {}).some(p => R.mandates[p] > 0)) return Object.keys(R.votes).reduce((x, y) => R.votes[y] > R.votes[x] ? y : x); return Object.keys(R.mandates).reduce((x, y) => (R.mandates[y] > R.mandates[x] || (R.mandates[y] === R.mandates[x] && R.votes[y] > R.votes[x])) ? y : x); };
   const AREA_LIST = [{ id: 'land', label: 'Hele landet', meta: 'Land', keys: ['hele landet', 'danmark', 'landsresultat'] }]
     .concat(REG.map(r => ({ id: r.id, label: r.name, meta: 'Region', keys: [r.name.toLowerCase(), r.short.toLowerCase()] })));
   function searchRegions(q) {
@@ -301,12 +323,8 @@
   }
 
   function accordion(linkFor) {
-    const accData = [
-      ['Kommunalvalg', 'Find resultater fra kommunalvalg i hele Danmark', Object.keys(ELS).map(v => h('a', { href: linkFor(v) }, ELS[v].name))],
-      ['Regionsrådsvalg', 'Find resultater fra regionsrådsvalg i hele Danmark', null],
-      ['Europa-Parlamentsvalg', 'Find resultater fra Europa-Parlamentsvalg i Danmark', null],
-      ['Folkeafstemning', 'Find resultater fra folkeafstemninger i Danmark', null],
-    ];
+    const DESC = { ft: 'Find resultater fra folketingsvalg', kv: 'Find resultater fra kommunalvalg i hele Danmark', rv: 'Find resultater fra regionsrådsvalg i hele Danmark', ep: 'Find resultater fra Europa-Parlamentsvalg i Danmark', fa: 'Find resultater fra folkeafstemninger i Danmark' };
+    const accData = TYPE_ORDER.map(t => [TYPES[t].name, DESC[t], elsOfType(t).map(v => h('a', { href: linkFor(v) }, h('strong', {}, ELS[v].name), h('small', { style: 'display:block;color:var(--muted);font-weight:400' }, dayDate(v) + (ELS[v].question ? ' · ' + ELS[v].question : ''))))]);
     const acc = h('div', { class: 'acc' });
     accData.forEach(([t, d, links], i) => {
       const bid = 'acc-b' + i, pid = 'acc-p' + i;
@@ -391,14 +409,14 @@
     const statusHold = h('div');
     const sel = h('select', { class: 'select', id: 'pickK', 'aria-label': 'Vælg kommune' }, h('option', { value: '' }, 'Vælg kommune …'), KOM.map(k => h('option', { value: k.id }, k.name)));
     sel.addEventListener('change', () => { if (sel.value) location.hash = resultHref(sel.value, valg); });
-    const vsel = h('select', { class: 'select', id: 'pickV', 'aria-label': 'Vælg valg' }, Object.entries(ELS).map(([id, e]) => h('option', { value: id }, e.name)));
+    const vsel = h('select', { class: 'select', id: 'pickV', 'aria-label': 'Vælg valg' }, TYPE_ORDER.map(t => h('optgroup', { label: TYPES[t].name }, elsOfType(t).map(id => h('option', { value: id, selected: id === valg ? '' : null }, ELS[id].name)))));
     function draw() {
       title.textContent = 'Status på optælling for kommuner';
       mapHold.innerHTML = ''; lgHold.innerHTML = ''; statusHold.innerHTML = '';
       mapHold.append(GEO.renderMap({ valg, metric: 'status', plain: true, onSelect: id => { log('map', id); location.hash = resultHref(id, valg); } }));
       lgHold.append(GEO.legend(valg, 'status', 1));
       const bar = (lbl, txt, v) => h('div', { class: 'prog' }, h('div', { class: 'row' }, h('span', {}, lbl), h('strong', {}, txt)), h('div', { class: 'track' }, h('i', { class: 'ok', style: `width:${v}%` })));
-      statusHold.append(h('h3', {}, ELS[valg].name, h('small', {}, ELS[valg].date)), bar('Optalte kommuner', `${KOM.length} af ${KOM.length}`, 100), bar('Foreløbig optælling', '100 %', 100), bar('Fintælling', '100 %', 100),
+      statusHold.append(h('h3', {}, ELS[valg].name, h('small', {}, dayDate(valg))), bar('Optalte kommuner', `${KOM.length} af ${KOM.length}`, 100), bar('Foreløbig optælling', '100 %', 100), bar('Fintælling', '100 %', 100),
         h('div', { style: 'margin-top:16px' }, h('a', { class: 'btn small', href: resultHref('land', valg) }, 'Se landsresultat')),
         h('div', { class: 'pick', style: 'margin-top:18px' }, h('label', { for: 'pickK' }, 'Find din kommune'), sel));
     }
@@ -426,7 +444,7 @@
     autocomplete(inp, searchKommuner, pick);
     const form = h('form', { class: 'search', role: 'search', onsubmit: e => { e.preventDefault(); const f = searchKommuner(inp.value)[0]; if (f) pick(f); } }, h('div', { class: 'box' }, inp, h('button', { class: 'btn', type: 'submit' }, 'Søg')));
     return h('div', { class: 'page wrap' }, crumb({ t: 'Forside', href: '#/' }, { t: 'Valgresultater', href: '#/find' }, { t: ELS[id].name }),
-      h('h1', {}, ELS[id].name), h('p', { class: 'lead' }, ELS[id].date + ' · Endeligt resultat'),
+      h('h1', {}, ELS[id].name), h('p', { class: 'lead' }, dayDate(id) + ' · Endeligt resultat'), ELS[id].question ? h('p', { style: 'margin-top:8px;max-width:70ch' }, ELS[id].question) : null,
       h('div', { class: 'panel', style: 'margin-top:24px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap' },
         h('div', {}, h('h2', { style: 'font-size:20px' }, 'Landsresultat'), h('p', { style: 'color:var(--muted)' }, 'Samlet resultat for alle kommuner')),
         h('a', { class: 'btn', href: resultHref('land', id) }, 'Se landsresultat')),
@@ -449,8 +467,8 @@
     autocomplete(inp, searchAreas, pick);
     const form = h('form', { class: 'search', role: 'search', onsubmit: e => { e.preventDefault(); const f = searchAreas(inp.value)[0]; if (f) pick(f); else { err.hidden = false; err.textContent = 'Vi kan ikke finde «' + inp.value + '». Prøv fx Hørsholm, Aarhus eller Region Hovedstaden.'; log('search', inp.value + ' (ingen)'); } } },
       h('div', { class: 'box' }, inp, h('button', { class: 'btn', type: 'submit' }, 'Søg')));
-    const chips = h('div', { class: 'pills', role: 'radiogroup', 'aria-label': 'Vælg valg' }, Object.entries(ELS).map(([id, e]) =>
-      h('label', { class: 'pill' }, h('input', { type: 'radio', name: 'valg', value: id, checked: id === valg, onchange: () => { valg = id; history.replaceState(null, '', href('/find', { valg })); } }), h('span', {}, e.name))));
+    const chips = h('div', { role: 'radiogroup', 'aria-label': 'Vælg valg' }, valgGroups((id, yr) =>
+      h('label', { class: 'pill' }, h('input', { type: 'radio', name: 'valg', value: id, checked: id === valg, 'aria-label': ELS[id].name, onchange: () => { valg = id; history.replaceState(null, '', href('/find', { valg })); } }), h('span', {}, yr))));
     const often = ['kobenhavn', 'aarhus', 'odense', 'aalborg', 'horsholm'].map(id => byId[id]);
     return h('div', { class: 'page wrap' }, crumb({ t: 'Forside', href: '#/' }, { t: 'Find resultat' }),
       h('h1', {}, 'Find dit valgresultat'), h('p', { class: 'lead' }, 'Vælg først valg, og søg derefter på din kommune eller region.'),
@@ -478,8 +496,8 @@
       const rows = a.kommuner.slice().sort(mode === 'el' ? (x, y) => y.results[valg].electorate - x.results[valg].electorate : mode === 'turn' ? (x, y) => y.results[valg].turnout - x.results[valg].turnout : (x, y) => x.name.localeCompare(y.name, 'da'));
       tbody.innerHTML = '';
       rows.forEach(k => {
-        const R = k.results[valg], b = biggest(k, valg);
-        tbody.append(h('tr', {}, h('td', {}, h('a', { href: resultHref(k.id, valg) }, k.name)), h('td', { class: 'num' }, fmtN(R.electorate)), h('td', { class: 'num' }, fmtP(R.turnout)), h('td', {}, h('span', { class: 'pletter', style: `background:${D.parties[b].color}`, 'aria-hidden': 'true' }, b), D.parties[b].name), h('td', { class: 'num' }, String(k.seats))));
+        const R = k.results[valg], b = biggest({ results: k.results }, valg);
+        tbody.append(h('tr', {}, h('td', {}, h('a', { href: resultHref(k.id, valg) }, k.name)), h('td', { class: 'num' }, fmtN(R.electorate)), h('td', { class: 'num' }, fmtP(R.turnout)), h('td', {}, h('span', { class: 'pletter', style: `background:${D.parties[b].color}`, 'aria-hidden': 'true' }, b), D.parties[b].name), h('td', { class: 'num' }, seatsAt(valg, 'kommune') ? String(k.seats) : '–')));
       });
     }
     sel.addEventListener('change', () => { mode = sel.value; log('sort', mode); draw(); });
@@ -487,7 +505,7 @@
     return h('section', { class: 'section', 'aria-labelledby': 'h-sub' },
       h('div', { class: 'toolbar' }, h('h2', { id: 'h-sub', style: 'font-size:22px' }, `Kommuner (${a.kommuner.length})`), h('span', { class: 'spacer' }), h('label', { for: 'subsort', style: 'color:var(--muted);font-size:14px' }, 'Sortér efter'), sel),
       h('div', { class: 'tbl-wrap', style: 'max-height:560px;overflow:auto' }, h('table', { class: 'tbl' }, h('caption', { class: 'sr-only' }, 'Kommuner i ' + a.label),
-        h('thead', {}, h('tr', {}, ['Kommune', 'Valgberettigede', 'Valgdeltagelse', 'Største parti', 'Mandater'].map((t, i) => h('th', { scope: 'col', class: i === 1 || i === 2 || i === 4 ? 'num' : '' }, t)))), tbody)));
+        h('thead', {}, h('tr', {}, ['Kommune', 'Valgberettigede', 'Valgdeltagelse', isFA(valg) ? 'Flest stemmer' : 'Største parti', 'Mandater'].map((t, i) => h('th', { scope: 'col', class: i === 1 || i === 2 || i === 4 ? 'num' : '' }, t)))), tbody)));
   }
 
 
@@ -560,7 +578,7 @@
     let sort = q.sort === 'alpha' ? 'alpha' : 'size';
     const R = k.results[valg], prevId = ELS[valg].prev, P = prevId ? k.results[prevId] : null;
     document.title = `${k.label} – ${ELS[valg].name} – valg.dk (prototype)`;
-    const rows0 = partyRows(k, valg);
+    const rows0 = partyRows(k, valg), hasM = seatsAt(valg, k.type);
     const maxM = Math.max(...rows0.map(r => r.m), 1);
     const el = h('div', { class: 'page wrap' });
     const crumbs = isA ? [{ t: 'Forside', href: '#/' }, { t: 'Valgresultater', href: '#/find' }, { t: ELS[valg].name, href: href('/valg/' + valg) }] : [{ t: 'Forside', href: '#/' }, { t: 'Find resultat', href: href('/find', { valg }) }];
@@ -568,17 +586,19 @@
     crumbs.push({ t: k.label });
     el.append(crumb(...crumbs));
     el.append(h('div', { class: 'titlerow' }, h('h1', {}, k.label), isC && window.VX ? window.VX.statusBadge(k, valg) : h('span', { class: 'badge' }, 'Endeligt resultat')));
-    el.append(h('p', { class: 'lead' }, `${ELS[valg].name} · ${ELS[valg].date} · ` + (k.type === 'kommune' ? k.region : `${k.kommuner.length} kommuner`)));
-    el.append(h('div', { class: 'pills', style: 'margin-top:20px', role: 'group', 'aria-label': 'Skift valg' }, Object.entries(ELS).map(([id, e]) =>
-      h('a', { class: 'pill' + (id === valg ? ' active' : ''), href: resultHref(k.id, id, { sort }), 'aria-current': id === valg ? 'true' : null }, e.name))));
+    el.append(h('p', { class: 'lead' }, `${ELS[valg].name} · ${dayDate(valg)} · ` + (k.type === 'kommune' ? k.region : `${k.kommuner.length} kommuner`)));
+    if (ELS[valg].question) el.append(h('p', { style: 'margin-top:8px;max-width:70ch' }, ELS[valg].question));
+    el.append(valgPills(valg, id => resultHref(k.id, id, { sort })));
     const dT = P ? R.turnout - P.turnout : null;
     el.append(h('section', { class: 'panel', style: 'margin-top:26px', 'aria-label': 'Nøgletal' },
       h('div', { class: 'kpis', style: 'margin-top:0' },
-        h('div', { class: 'stat main' }, h('div', { class: 'lbl' }, 'Mandater i alt'), h('div', { class: 'val' }, fmtN(k.seats))),
+        hasM ? h('div', { class: 'stat main' }, h('div', { class: 'lbl' }, 'Mandater i alt'), h('div', { class: 'val' }, fmtN(k.type === 'kommune' ? k.seats : rows0.reduce((t, r) => t + r.m, 0))))
+          : h('div', { class: 'stat main' }, h('div', { class: 'lbl' }, isFA(valg) ? 'Resultat' : 'Valgberettigede'), h('div', { class: 'val' }, isFA(valg) ? (rows0.find(r => r.p === 'JA').share > 50 ? 'Ja' : 'Nej') : fmtN(R.electorate))),
         h('div', { class: 'stat' }, h('div', { class: 'lbl' }, k.type === 'kommune' ? 'Stemmeprocent' : 'Valgdeltagelse'), h('div', { class: 'val' }, fmtP(R.turnout))),
         h('div', { class: 'stat' }, h('div', { class: 'lbl' }, 'Ændring ift. forrige valg'), h('div', { class: 'val' }, dT == null ? '–' : sgn(dT) + ' %-point')),
         h('div', { class: 'stat' }, h('div', { class: 'lbl' }, 'Afgivne stemmer'), h('div', { class: 'val' }, fmtN(R.cast)))),
       (() => {
+        if (!hasM) return h('p', { class: 'mapnote', style: 'margin-top:14px' }, isFA(valg) ? 'Ved en folkeafstemning er der ingen mandater – kun ja- og nej-stemmer.' : `Ved ${TYPES[typeOf(valg)].name.replace(/^(?!Europa)./, c => c.toLowerCase())} fordeles mandaterne ${typeOf(valg) === 'rv' ? 'i hver region' : 'for hele landet'} – ikke i ${k.type === 'kommune' ? 'den enkelte kommune' : 'den enkelte region'}. Her ses stemmerne.`);
         const seg = sortRows(rows0, 'size').filter(r => r.m > 0);
         const bar = h('div', { class: 'mbar', role: 'img', 'aria-label': 'Mandatfordeling: ' + seg.map(r => `${r.p} ${r.m}`).join(', ') },
           seg.map(r => h('span', { style: `flex:${r.m} 1 0;background:${r.color}`, title: `${r.p} – ${r.name}: ${r.m} mandater` }, r.m >= 2 ? r.p : '')));
@@ -589,11 +609,11 @@
     const tbody = h('tbody');
     function rowEl(r) {
       return h('tr', { class: 'row', 'data-key': r.p },
-        h('td', {}, h('span', { class: 'pletter', style: `background:${r.color}`, 'aria-hidden': 'true' }, r.p), h('a', { href: href('/parti/' + r.p, { valg }), class: 'plink' }, r.name)),
+        h('td', {}, h('span', { class: 'pletter', style: `background:${r.color}`, 'aria-hidden': 'true' }, isFA(valg) ? '' : r.p), isFA(valg) ? h('strong', {}, r.name) : h('a', { href: href('/parti/' + r.p, { valg }), class: 'plink' }, r.name)),
         h('td', { class: 'num' }, fmtN(r.votes), P ? h('small', { class: 'dsub' }, sgn(r.dv) + ' stemmer') : null), h('td', { class: 'num' }, fmtP(r.share)),
         P ? h('td', { class: 'num' }, dDelta(r.ds, ' %-p', 1)) : null,
-        h('td', {}, h('div', { class: 'bar' }, h('i', { style: `width:${Math.max(r.m / maxM * 180, r.m ? 6 : 0)}px;background:${r.color}` }), h('strong', {}, String(r.m)))),
-        P ? h('td', { class: 'num' }, h('span', { class: 'delta ' + (r.d > 0 ? 'up' : r.d < 0 ? 'down' : 'zero'), 'aria-label': r.d === 0 ? 'uændret' : (r.d > 0 ? r.d + ' flere' : -r.d + ' færre') }, r.d === 0 ? '0' : (r.d > 0 ? '▲ +' + r.d : '▼ −' + (-r.d)))) : null);
+        hasM ? h('td', {}, h('div', { class: 'bar' }, h('i', { style: `width:${Math.max(r.m / maxM * 180, r.m ? 6 : 0)}px;background:${r.color}` }), h('strong', {}, String(r.m)))) : null,
+        P && hasM ? h('td', { class: 'num' }, h('span', { class: 'delta ' + (r.d > 0 ? 'up' : r.d < 0 ? 'down' : 'zero'), 'aria-label': r.d === 0 ? 'uændret' : (r.d > 0 ? r.d + ' flere' : -r.d + ' færre') }, r.d === 0 ? '0' : (r.d > 0 ? '▲ +' + r.d : '▼ −' + (-r.d)))) : null);
     }
     sortRows(rows0, sort).forEach(r => tbody.append(rowEl(r)));
     const bSize = h('button', { class: 'pill', type: 'button', 'aria-pressed': String(sort === 'size') }, 'Størst først');
@@ -617,7 +637,7 @@
       h('button', { class: 'btn secondary small', type: 'button', onclick: () => download(fname('-data.csv'), csv(exHead, exportRows(), { sep: ',', dec: '.' })) }, '⬇ CSV (UTF-8)'), shareBtn(), printBtn()));
     el.append(live);
     el.append(h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('caption', { class: 'sr-only' }, `Resultat for ${k.label}, ${ELS[valg].name}`),
-      h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Parti'), h('th', { scope: 'col', class: 'num' }, 'Stemmer'), h('th', { scope: 'col', class: 'num' }, 'Andel'), P ? h('th', { scope: 'col', class: 'num' }, 'Ændring andel') : null, h('th', { scope: 'col' }, 'Mandater'), P ? h('th', { scope: 'col', class: 'num' }, 'Ændring mandater') : null)), tbody)));
+      h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Parti'), h('th', { scope: 'col', class: 'num' }, 'Stemmer'), h('th', { scope: 'col', class: 'num' }, 'Andel'), P ? h('th', { scope: 'col', class: 'num' }, 'Ændring andel') : null, hasM ? h('th', { scope: 'col' }, 'Mandater') : null, P && hasM ? h('th', { scope: 'col', class: 'num' }, 'Ændring mandater') : null)), tbody)));
 
     if (k.type !== 'kommune' && isA) {
       el.append(subTable(k, valg));
@@ -629,7 +649,7 @@
           h('a', { class: 'btn', href: href('/data', k.type === 'region' ? { scope: 'regioner', r: k.id, valg } : { scope: 'land', valg }) }, k.type === 'region' ? 'Hent data for regionen' : 'Hent data for hele landet'),
           h('p', { style: 'margin-top:16px' }, h('a', { href: href('/sammenlign', { a: k.id, valg }) }, 'Sammenlign med andre områder  →')))));
       el.append(subTable(k, valg));
-    } else {
+    } else if (k.results[valg].areas) {
       el.append(areaTable(k, valg));
     }
     if (k.type === 'kommune' && isC && window.VX) el.append(window.VX.kommuneExtras(k, valg));
@@ -664,7 +684,7 @@
     }
     const add = h('button', { type: 'button', class: 'linkbtn', onclick: () => { if (names.length < 3) { names.push(''); drawAreas(); } add.hidden = names.length >= 3; } }, '+ Tilføj område');
     drawAreas(); add.hidden = names.length >= 3;
-    const valgBox = h('div', { class: 'pills', role: 'radiogroup', 'aria-label': 'Vælg valg' });
+    const valgBox = h('div', { role: 'radiogroup', 'aria-label': 'Vælg valg' });
     const maalBox = h('div', { class: 'pills', role: 'radiogroup', 'aria-label': 'Hvad vil du sammenligne?' });
     function drawMaal() {
       maalBox.innerHTML = '';
@@ -673,7 +693,7 @@
         maalBox.append(h('label', { class: 'pill', title: dis ? 'Kræver et tidligere valg – vælg ' + ELS.kv2025.name : null }, h('input', { type: 'radio', name: 'maal', value: id, checked: id === maal && !dis, disabled: dis, onchange: () => { maal = id; } }), h('span', {}, t)));
       });
     }
-    Object.entries(ELS).forEach(([id, e]) => valgBox.append(h('label', { class: 'pill' }, h('input', { type: 'radio', name: 'valg', value: id, checked: id === valg, onchange: () => { valg = id; if (!ELS[valg].prev && maal === 'aendring') maal = 'mandater'; drawMaal(); } }), h('span', {}, e.name))));
+    valgBox.append(...valgGroups((id, yr) => h('label', { class: 'pill' }, h('input', { type: 'radio', name: 'valg', value: id, checked: id === valg, 'aria-label': ELS[id].name, onchange: () => { valg = id; if (!ELS[valg].prev && maal === 'aendring') maal = 'mandater'; drawMaal(); } }), h('span', {}, yr))));
     drawMaal();
     function submit(e) {
       e.preventDefault();
@@ -718,7 +738,7 @@
       const ks = pickedKom(), vs = Object.keys(ELS).filter(v => valgs.has(v));
       let head, rows = [];
       if (niveau === 'omr') {
-        const ar = (k, v) => k.results[v].areas;
+        const ar = (k, v) => k.results[v].areas || [];
         if (indhold === 'noegletal') {
           head = ['Region', 'Kommune', 'Afstemningsområde', 'Valg', 'Valgberettigede', 'Afgivne stemmer', 'Gyldige stemmer', 'Valgdeltagelse (%)', 'Største parti'];
           vs.forEach(v => ks.forEach(k => ar(k, v).forEach(a => { const st = areaStats(a, null); rows.push([regionName(k), k.name, a.name, ELS[v].name, a.electorate, a.cast, a.valid, +st.turnout.toFixed(1), st.top + ' ' + D.parties[st.top].name]); })));
@@ -728,10 +748,10 @@
         }
       } else if (indhold === 'noegletal') {
         head = ['Region', 'Kommune', 'Valg', 'Valgberettigede', 'Afgivne stemmer', 'Gyldige stemmer', 'Valgdeltagelse (%)', 'Mandater i alt', 'Største parti'];
-        vs.forEach(v => ks.forEach(k => { const R = k.results[v]; rows.push([regionName(k), k.name, ELS[v].name, R.electorate, R.cast, R.valid, R.turnout, k.seats, biggest(k, v) + ' ' + D.parties[biggest(k, v)].name]); }));
+        vs.forEach(v => ks.forEach(k => { const R = k.results[v]; const b = biggest({ results: k.results }, v); rows.push([regionName(k), k.name, ELS[v].name, R.electorate, R.cast, R.valid, R.turnout, seatsAt(v, 'kommune') ? k.seats : '', b + ' ' + D.parties[b].name]); }));
       } else {
         head = ['Region', 'Kommune', 'Valg', 'Parti', 'Partinavn', 'Stemmer', 'Andel (%)', 'Mandater'];
-        vs.forEach(v => ks.forEach(k => { const R = k.results[v]; Object.keys(R.votes).filter(p => R.votes[p] > 0).sort((a, b) => R.votes[b] - R.votes[a]).forEach(p => rows.push([regionName(k), k.name, ELS[v].name, p, D.parties[p].name, R.votes[p], +(R.votes[p] / R.valid * 100).toFixed(2), R.mandates[p] || 0])); }));
+        vs.forEach(v => ks.forEach(k => { const R = k.results[v]; Object.keys(R.votes).filter(p => R.votes[p] > 0).sort((a, b) => R.votes[b] - R.votes[a]).forEach(p => rows.push([regionName(k), k.name, ELS[v].name, p, D.parties[p].name, R.votes[p], +(R.votes[p] / R.valid * 100).toFixed(2), seatsAt(v, 'kommune') ? R.mandates[p] || 0 : ''])); }));
       }
       return { head, rows, ks };
     }
@@ -770,8 +790,8 @@
       else if (koms.size > 12) komChips.append(h('span', { class: 'chip' }, `${koms.size} kommuner valgt`));
       else [...koms].forEach(id => komChips.append(h('span', { class: 'chip' }, byId[id].name, h('button', { type: 'button', 'aria-label': 'Fjern ' + byId[id].name, onclick: () => { koms.delete(id); drawChips(); refresh(); } }, '×'))));
     }
-    const valgBoxes = h('div', { class: 'checks', role: 'group', 'aria-label': 'Vælg valg' }, Object.entries(ELS).map(([id, e]) =>
-      h('label', { class: 'check' }, h('input', { type: 'checkbox', value: id, checked: valgs.has(id), onchange: ev => { ev.target.checked ? valgs.add(id) : valgs.delete(id); refresh(); } }), e.name)));
+    const valgBoxes = h('div', { role: 'group', 'aria-label': 'Vælg valg' }, valgGroups((id, yr) =>
+      h('label', { class: 'check', style: 'margin:0' }, h('input', { type: 'checkbox', value: id, checked: valgs.has(id), 'aria-label': ELS[id].name, onchange: ev => { ev.target.checked ? valgs.add(id) : valgs.delete(id); refresh(); } }), yr)));
 
     const steps = h('div', { class: 'steps' },
       h('div', { class: 'step' }, h('div', { class: 'lab' }, h('b', {}, '1'), 'Hvad vil du hente?'), h('div', { class: 'optcards' },
@@ -855,6 +875,7 @@
     const valg = ELS[q.valg] ? q.valg : DEFAULT_VALG;
     let maal = MAAL[q.maal] ? q.maal : 'mandater'; if (maal === 'aendring' && !ELS[valg].prev) maal = 'mandater';
     const areas = ids.map((id, i) => ({ k: getArea(id), R: getArea(id).results[valg], P: ELS[valg].prev ? getArea(id).results[ELS[valg].prev] : null, color: COL[i] }));
+    if ((maal === 'mandater' || maal === 'aendring') && !areas.every(a => seatsAt(valg, a.k.type))) maal = 'stemmeandel'; /* fx regionsrådsvalg i to kommuner: ingen mandater dér */
     const title = areas.map(a => a.k.type === 'kommune' ? a.k.short : a.k.label).join(' vs. ');
     document.title = `${title} – valg.dk (prototype)`;
     const pOrder = Object.keys(D.parties).filter(p => areas.some(a => a.R.votes[p] > 0 || (a.R.mandates[p] || 0) > 0));
@@ -882,7 +903,7 @@
     el.append(h('h1', {}, title));
     el.append(h('p', { class: 'lead' }, `${ELS[valg].name} · ${MAAL[maal]} · Eksempeldata`));
     const links = (mk, cur, entries, paramName) => h('div', { class: 'pills', style: 'margin-top:18px' }, entries.map(([id, t, dis]) => dis ? h('span', { class: 'pill', 'aria-disabled': 'true', title: 'Kræver et tidligere valg' }, t) : h('a', { class: 'pill' + (id === cur ? ' active' : ''), 'aria-current': id === cur ? 'true' : null, href: href('/sammenlign/resultat', Object.assign({ a: ids[0], b: ids[1], c: ids[2], valg, maal }, { [paramName]: id })) }, t)));
-    el.append(links(null, valg, Object.entries(ELS).map(([id, e]) => [id, e.name]), 'valg'));
+    el.append(links(null, valg, elsOfType(typeOf(valg)).map(id => [id, ELS[id].name]), 'valg'));
     el.append(links(null, maal, Object.entries(MAAL).map(([id, t]) => [id, t, id === 'aendring' && !ELS[valg].prev]), 'maal'));
     el.append(h('div', { class: 'areacards' }, areas.map(a => h('div', { class: 'areacard' }, h('i', { style: `background:${a.color}`, 'aria-hidden': 'true' }), h('div', {}, h('div', { class: 'n' }, a.k.label), h('div', { class: 'v' }, a.k.seats + ' mandater'), h('div', { class: 'n' }, 'Valgdeltagelse ' + fmtP(a.R.turnout)))))));
     const chartPanel = h('div', { class: 'chart' }, h('div', { class: 'chart-legend' }, areas.map(a => h('span', {}, h('i', { style: `background:${a.color}` }), a.k.short))), barChart({ cats, series, decimals, unit }));
@@ -937,7 +958,7 @@
   function sitemapPage() {
     const sec = (t, links) => [h('h2', {}, t), h('ul', {}, links.map(([hr, l]) => h('li', {}, h('a', { href: hr }, l))))];
     return docPage('Sitemap',
-      sec('Valgresultater', [['#/find', 'Find resultat'], ].concat(Object.keys(ELS).map(v => [resultHref('land', v), 'Hele landet – ' + ELS[v].name])).concat(REG.map(r => [resultHref(r.id, 'kv2025'), r.name]))),
+      sec('Valgresultater', [['#/find', 'Find resultat'], ].concat(Object.keys(ELS).map(v => [resultHref('land', v), TYPES[typeOf(v)].name + ' – ' + ELS[v].name.replace(/^.* /, '') + ' – hele landet'])).concat(REG.map(r => [resultHref(r.id, 'kv2025'), r.name]))),
       sec('Tal og data', [['#/sammenlign', 'Sammenlign områder'], ['#/data', 'Hent data']]),
       sec('Om valg.dk', [['#/om-valg', 'Om valg.dk'], ['#/driftstatus', 'Driftstatus for valg.dk'], ['#/tilgaengelighed', 'Tilgængelighedserklæring'], ['#/privatliv', 'Privatlivspolitik og brug af data']]));
   }
@@ -1012,7 +1033,7 @@
   }
 
   /* ---------- router ---------- */
-  window.VH = { searchAll, searchAreas, h, s, fmtN, fmtP, sgn, crumb, href, resultHref, getArea, partyRows, sortRows, csv, download, shareBtn, printBtn, log, autocomplete, icon, mapCard, D, KOM, byId, ELS, REG, biggest, norm, ikkeMed, dDelta, areaName, searchKommuner, searchParties, DEFAULT_VALG, aggregate, areaStats, regOf, exportPng, pngBtn, barChart, COL };
+  window.VH = { TYPES, TYPE_ORDER, typeOf, elsOfType, seatsAt, isFA, dayDate, yearOfV, searchAll, searchAreas, h, s, fmtN, fmtP, sgn, crumb, href, resultHref, getArea, partyRows, sortRows, csv, download, shareBtn, printBtn, log, autocomplete, icon, mapCard, D, KOM, byId, ELS, REG, biggest, norm, ikkeMed, dDelta, areaName, searchKommuner, searchParties, DEFAULT_VALG, aggregate, areaStats, regOf, exportPng, pngBtn, barChart, COL };
   if (isC && window.VX) window.VX.init();
   const routes = { '': home, find, parti, valg: valgPage, testresultater, resultat, sammenlign, data: dataPage, 'om-valg': omValg, driftstatus: driftPage, tilgaengelighed: tilgPage, privatliv: privPage, sitemap: sitemapPage, 'ikke-med': ikkeMed };
   if (isC && window.VX) Object.assign(routes, window.VX.routes);

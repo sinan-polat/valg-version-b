@@ -88,6 +88,24 @@ Siden har `noindex`, så søgemaskiner ikke bør vise den, men et offentligt lin
 
 UX-gennemgangen med bots, friktionstabel og Dommerens vurdering ligger i `docs/ux-gennemgang-version-d.md`.
 
+### Runde 5 (17. november 2026): alle fem valgtyper
+
+Valg.dk dækker fem typer valg, og der kommer nye hvert år eller hvert andet år. Prototypen har nu dem alle som eksempeldata, så man kan se, hvordan man navigerer i et landskab med 24 valg:
+
+| Type | Valg | Mandater ligger i |
+|---|---|---|
+| Folketingsvalg | 2026, 2022, 2019, 2015, 2011, 2007, 2005 | hele landet (175); 2026 har også storkredse og kandidater |
+| Kommunalvalg | 2025, 2021, 2017, 2013, 2009 | hver kommune, summeret til region og land |
+| Regionsrådsvalg | 2025, 2021, 2017, 2013 | hver region (41), summeret til land |
+| Europa-Parlamentsvalg | 2024, 2019, 2014, 2009, 2004 | hele landet |
+| Folkeafstemning | 2022, 2015, 2014 | ingen – kun ja og nej |
+
+* Navne, datoer, ugedage og spørgsmål er de rigtige fra valg.dk. **Alle tal er opdigtede** (`tools/add_all_elections.py`). Folkeafstemningerne har samme udfald som de rigtige (ja, nej, ja), så eksemplet ikke vildleder. Kommunalvalg 2005 og 2001 er udeladt, fordi der dengang var 271 kommuner.
+* Prototypens eksisterende eksempel-folketingsvalg er nu Folketingsvalg 2026, og version D (rapportens version B) åbner på det, fordi det er det nyeste valg. Kommunalvalg 2025 og 2021 har præcis de samme tal som før, så svarene på testopgaverne er uændrede – men i T1–T3 skal man nu selv vælge kommunalvalg.
+* **Version D:** Valget er to felter i sætningen – først typen (5 muligheder), så året (højst 7): «… ved [Regionsrådsvalg] [2025].» Hvis valget ikke har mandater i området (fx regionsrådsvalg i en kommune), viser svaret stemmerne og forklarer hvorfor. Folkeafstemninger viser ja og nej, og kortet farver efter flest stemmer. «Hent data» vælger type og år i to rækker.
+* **Version A og B:** Forsidens oversigt har én sektion pr. valgtype med dato og ugedag (som på valg.dk), og resultatsiderne har en valgvælger i to rækker: type, så år.
+* Forenkling: regionerne er de fem nuværende ved alle regionsrådsvalg (i 2025 blev Hovedstaden og Sjælland til Region Østdanmark).
+
 ### Runde 4 (17. november 2026): rettelser efter pilottesten
 
 Pilottesten 16.11 med en product owner i KOMBIT (P01) fandt fejl i version D (rapportens version B). De er rettet sådan:
