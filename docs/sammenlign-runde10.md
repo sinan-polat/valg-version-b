@@ -15,6 +15,7 @@ Figur: `docs/runde10/Bilagsfigur13_sammenlign_foer_efter.png` (før = commit cde
 | At sammenligne (29) og at se udvikling over tid (18) er to forskellige formål | Spørgeskema, bilag 14.4c (K200) | Trin 2 skiller dem ad: «To kommuner», «To regioner», «Udvikling over tid». | Brugere skelnes ved, hvad de kommer for (U1) |
 | Version A's Sammenlign («Vælg 2–3 områder») gav det bedste T2 | Afsnit 9.4 | Kun to kommuner eller to regioner (opdateret: en tredje kolonne blev fjernet for at holde svaret enkelt). | Bevar det, der virker (P2); færre valg ad gangen |
 | Siden åbnede på «Udvikling over tid», når man kom fra forsiden (hele landet) – den mindst brugte måde | Egen gennemgang 17.11; spørgeskemaet (29 mod 18) | Sammenlign åbner på «To kommuner». «Udvikling over tid» vælges kun, når man selv trykker på den eller kommer fra «Sammenlign med 2021». I trin 3 er «mod hvilket år» et felt ved siden af stedet («Hele landet mod 2022»), så panelet ikke skal scrolle. | Det hyppigste formål først (U1); synlig status |
+| Den hentede fil (CSV) var svær at overskue i Excel: smalle kolonner, én lang liste og ingen titel | Egen gennemførsel af T2, 18.11 | «Hent sammenligningen (Excel)» giver et .xlsx-ark med titel, de to områder side om side, forskel, i alt, fakta om valget og en kort læsevejledning. De rå tal ligger i fanen «Data». | Genkendelighed mellem skærm og fil; hjælp og dokumentation (Nielsen) |
 | Ugyldige sammenligninger: to ens år, region mod kommune, hele landet mod en kommune | Egen gennemgang 17.11 | Kan ikke vælges: trin 3 viser kun kommuner, kun regioner eller kun tidligere år af samme type. Gamle links rettes automatisk. | Fejlforebyggelse |
 
 ## Hvad der er ændret (teknisk)
@@ -29,7 +30,7 @@ Figur: `docs/runde10/Bilagsfigur13_sammenlign_foer_efter.png` (før = commit cde
 
 ## Betydning for testopgaverne
 
-* **T2 (Hørsholm og Ishøj):** Sammenlign → «To kommuner» → vælg Hørsholm og Ishøj (der kan søges) → «Hent sammenligningen (Excel)». Siden åbner nu på «To kommuner» (din kommune eller København og en nabokommune) ved det valg, man kom fra, så man kun skal vælge valg og de to kommuner.
+* **T2 (Hørsholm og Ishøj):** Sammenlign → «To kommuner» → vælg Hørsholm og Ishøj (der kan søges) → «Hent sammenligningen (Excel)». Siden åbner nu på «To kommuner» (din kommune eller København og en nabokommune) ved det valg, man kom fra, så man kun skal vælge valg og de to kommuner. Filen er nu et regneark (.xlsx) med fanen «Sammenligning», hvor Hørsholm og Ishøj står side om side med mandater, stemmer og forskel, og fanen «Data» med de samme tal i lang form.
 * **T3 (Ishøj og 2021):** Uændret via Resultater → Ishøj → «Sammenlign med 2021», eller Sammenlign → «Udvikling over tid» → Ishøj. Svaret står i første sætning.
 * **Tallene er nu officielle (Danmarks Statistik):** T1-svaret er C med 7 af 19 mandater (før 6). T3-svaret er A med 7 af 19 mandater, to færre end i 2021 (9) – før stod der 9 af 15 og ét færre.
 * T4 og T5 er ikke berørt af designet, men alle tal på skærmen er nye.

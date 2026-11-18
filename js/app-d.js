@@ -755,6 +755,67 @@
         return ST.cm === 'tid' ? [{ id: ST.omr, valg: ST.valg, label: String(yr(ST.valg)) }, { id: ST.omr, valg: ST.valg2, label: String(yr(ST.valg2)) }]
           : [ST.omr, ST.omr2, ST.omr3].filter(Boolean).map(id => ({ id, valg: ST.valg, label: areaName(id) }));
       }
+      /* runde 10 (efter T2): «Hent sammenligningen (Excel)» giver et rigtigt regneark i stedet for CSV.
+         Fane 1 «Sammenligning» er bygget til at læse: titel, de to områder side om side, forskel, i alt, fakta om valget og en kort læsevejledning.
+         Fane 2 «Data» har de samme tal i lang form (én række pr. parti og område) til filtre og pivottabeller. */
+      function cmpWorkbook() {
+        const cols = cmpCols(), tid = ST.cm === 'tid', R = cols.map(c => resultOf(c.id, c.valg));
+        const hasM = R.every(r => r.hasM !== false) && R.some(r => r.seats > 0), hasV = R.every(r => r.rows.every(x => x.votes != null));
+        const [A, B] = cols, nA = A.label, nB = B.label;
+        const title = tid ? `${ELNAME[ST.valg].replace(/ \d{4}$/, '')} i ${areaIn(ST.omr)}: ${nA} mod ${nB}` : `${ELNAME[ST.valg]}: ${nA} og ${nB}`;
+        const by = R.map(r => Object.fromEntries(r.rows.map(x => [x.p, x])));
+        const ps = [...new Set(R.flatMap(r => r.rows.map(x => x.p)))].sort((p, q) => {
+          const k = (i, x, f) => (by[i][x] || {})[f] || 0; /* efter første kolonne (fx Hørsholm eller det nyeste år), så rækkefølgen er til at følge */
+          return k(0, q, 'm') - k(0, p, 'm') || k(0, q, 'votes') - k(0, p, 'votes') || k(1, q, 'm') - k(1, p, 'm') || k(1, q, 'votes') - k(1, p, 'votes') || p.localeCompare(q, 'da'); });
+        const per = hasM && hasV ? ['m', 'votes', 'share'] : hasM ? ['m'] : ['votes', 'share'];
+        const LBL = { m: 'Mandater', votes: 'Stemmer', share: 'Andel af stemmerne (%)' }, STY = { m: 'seat', votes: 'int', share: 'pct' }, TOT = { m: 'tSeat', votes: 'tInt', share: 'tPct' };
+        const dif = (hasM ? [['m', 'Mandater', 'dint']] : []).concat(hasV ? [['share', 'Andel (procentpoint)', 'dpct']] : []);
+        const W = 2 + per.length * 2 + dif.length, C = XLSX.col;
+        const rows = [], merges = [], blank = () => rows.push([]);
+        const line = (v, s) => { rows.push([{ v, s }]); merges.push(`A${rows.length}:${C(W - 1)}${rows.length}`); };
+        line(title, 'title');
+        line(tid ? `Samme sted ved to valg: ${nA} til venstre, ${nB} til højre, og hvor meget det har ændret sig.` : `De to ${A.id.startsWith('region-') ? 'regioner' : 'kommuner'} side om side ved samme valg, og forskellen mellem dem.`, 'text');
+        line(`Endeligt resultat. Kilde: Danmarks Statistik. Hentet fra Valg.dk (prototype) ${new Date().toLocaleDateString('da-DK')}.`, 'note');
+        blank();
+        const g = [{ v: '', s: 'group' }, { v: '', s: 'group' }]; let ci = 2;
+        [nA, nB].forEach(n => { g.push({ v: n, s: 'group' }); for (let i = 1; i < per.length; i++) g.push({ v: '', s: 'group' }); merges.push(`${C(ci)}${rows.length + 1}:${C(ci + per.length - 1)}${rows.length + 1}`); ci += per.length; });
+        if (dif.length) { g.push({ v: tid ? `Ændring (${nA} − ${nB})` : `Forskel (${nA} − ${nB})`, s: 'group' }); for (let i = 1; i < dif.length; i++) g.push({ v: '', s: 'group' }); if (dif.length > 1) merges.push(`${C(ci)}${rows.length + 1}:${C(ci + dif.length - 1)}${rows.length + 1}`); }
+        rows.push(g);
+        const fa = isFA(ST.valg);
+        rows.push([{ v: fa ? 'Svar' : 'Parti', s: 'head' }, { v: fa ? '' : 'Partinavn', s: 'headl' }].concat(per.map(k => ({ v: LBL[k], s: 'head' })), per.map(k => ({ v: LBL[k], s: 'head' })), dif.map(d => ({ v: d[1], s: 'head' }))));
+        const headRow = rows.length;
+        ps.forEach(p => {
+          const a = by[0][p], b = by[1][p], val = (x, k) => x ? (k === 'share' ? +x.share.toFixed(2) : x[k]) : (k === 'm' ? 0 : '');
+          rows.push([{ v: p, fill: D.parties[p].color }, PN(p)].concat(per.map(k => ({ v: val(a, k), s: STY[k] })), per.map(k => ({ v: val(b, k), s: STY[k] })),
+            dif.map(([k, , s]) => ({ v: k === 'm' ? ((a || {}).m || 0) - ((b || {}).m || 0) : +(((a || {}).share || 0) - ((b || {}).share || 0)).toFixed(1), s }))));
+        });
+        const sum = (r, k) => k === 'm' ? r.seats : k === 'votes' ? r.rows.reduce((t, x) => t + (x.votes || 0), 0) : 100;
+        rows.push([{ v: 'I alt', s: 'tText' }, { v: '', s: 'tBlank' }].concat(per.map(k => ({ v: sum(R[0], k), s: TOT[k] })), per.map(k => ({ v: sum(R[1], k), s: TOT[k] })), dif.map(([k]) => k === 'm' ? { v: R[0].seats - R[1].seats, s: 'tDint' } : { v: '', s: 'tBlank' })));
+        /* fakta om valget – kun hvor tallene findes (ikke for storkredse) */
+        if (R.every(r => r.R && r.R.electorate)) {
+          blank(); rows.push([{ v: 'Om valget', s: 'section' }]);
+          const at = k => 2 + per.indexOf(k), fA = at(per.includes('votes') ? 'votes' : per[0]), fB = fA + per.length;
+          [['Stemmeberettigede', r => r.R.electorate, 'int'], ['Afgivne stemmer', r => r.R.cast, 'int'], ['Gyldige stemmer', r => r.R.valid, 'int'], ['Valgdeltagelse (%)', r => +(r.R.cast / r.R.electorate * 100).toFixed(1), 'pct']].forEach(([t, f, s]) => {
+            const row = [{ v: t, s: 'text' }]; row[fA] = { v: f(R[0]), s }; row[fB] = { v: f(R[1]), s }; rows.push(row); merges.push(`A${rows.length}:B${rows.length}`);
+          });
+        }
+        blank(); rows.push([{ v: 'Sådan læser du arket', s: 'section' }]);
+        const notes = [fa ? `Svarene står efter flest stemmer i ${nA}.` : `Partierne står efter flest ${hasM ? 'mandater' : 'stemmer'} i ${nA}. Bogstavet i første kolonne er partiets listebogstav.`]
+          .concat(hasV ? ['«Andel af stemmerne» er partiets andel af de gyldige stemmer.'] : [])
+          .concat(dif.length ? [tid ? `«Ændring» er ${nA} minus ${nB}. Et plustal betyder, at partiet gik frem.` : `«Forskel» er ${nA} minus ${nB}. Et plustal betyder, at partiet står stærkere i ${nA}.`] : [])
+          .concat(ps.includes('L') ? ['«Øvrige lister» er lokallister og andre lister lagt sammen.'] : [])
+          .concat(hasV && !fa ? ['En tom celle betyder, at partiet ikke stillede op dér.'] : [])
+          .concat(['Fanen «Data» har de samme tal i lang form (én række pr. parti og område), klar til filtre og pivottabeller.']);
+        notes.forEach(t => line(t, 'note'));
+        const w1 = [8, 30].concat(Array(per.length * 2).fill(0).map((_, i) => per[i % per.length] === 'share' ? 13 : 11), dif.map(() => dif.length === 1 ? 26 : 15));
+        const sheet1 = { name: 'Sammenligning', widths: w1, rows, merges, freeze: headRow, grid: false, tabSelected: true, heights: { 0: 24, [headRow - 2]: dif.length && (tid ? 'Ændring' : 'Forskel').length + nA.length + nB.length + 6 > dif.length * 15 ? 32 : 20, [headRow - 1]: 32 } };
+        /* fane 2: lang form */
+        const dHead = ['Valg'].concat(HEAD), dRows = cols.flatMap(c => exportRows(c.id, c.valg, true).map(r => [ELNAME[c.valg]].concat(r)));
+        const dsty = ['text', 'text', 'text', 'text', 'text', 'int', 'pct', 'seat', 'dint', 'dpct'];
+        const sheet2 = { name: 'Data', widths: [22, 16, 22, 7, 30, 11, 11, 10, 12, 14], freeze: 1, filter: `A1:${C(dHead.length - 1)}${dRows.length + 1}`, heights: { 0: 32 },
+          rows: [dHead.map(t => ({ v: t, s: 'headl' }))].concat(dRows.map(r => r.map((v, i) => i === 3 && D.parties[v] ? { v, fill: D.parties[v].color } : { v, s: dsty[i] }))) };
+        return XLSX.blob([sheet1, sheet2]);
+      }
       function cmpDesc() {
         const c = cmpCols();
         return ST.cm === 'tid' ? `${areaIn(ST.omr)} ved ${lowerFirst(ELNAME[ST.valg])} mod ${yr(ST.valg2)}` : `${c.map(x => x.label).join(', ').replace(/, ([^,]*)$/, ' og $1')} ved ${lowerFirst(ELNAME[ST.valg])}`;
@@ -907,9 +968,8 @@
         if (ST.do === 'sammenlign' && !A.pending) {
           const cols = cmpCols();
           if (cols.every(c => !resultOf(c.id, c.valg).pending)) acts.append(h('button', { class: 'dbtn small', type: 'button', onclick: () => {
-            const rows = cols.flatMap(c => exportRows(c.id, c.valg, true).map(r => [ELNAME[c.valg]].concat(r)));
-            const nm = cols.map(c => ST.cm === 'tid' ? c.valg : c.id).join('-');
-            download(`sammenligning-${ST.cm === 'tid' ? ST.omr + '-' : ''}${nm}${ST.cm === 'tid' ? '' : '-' + ST.valg}.csv`, csv(['Valg'].concat(HEAD), rows)); say.textContent = 'Filen med sammenligningen er hentet.'; log('hent', 'sammenligning ' + cmpDesc());
+            const nm = cols.map(c => ST.cm === 'tid' ? c.valg : c.id).join('-'), fil = `sammenligning-${ST.cm === 'tid' ? ST.omr + '-' : ''}${nm}${ST.cm === 'tid' ? '' : '-' + ST.valg}.xlsx`;
+            const a = h('a', { href: URL.createObjectURL(cmpWorkbook()), download: fil }); document.body.append(a); a.click(); a.remove(); log('export', fil); say.textContent = 'Filen med sammenligningen er hentet.'; log('hent', 'sammenligning ' + cmpDesc());
           } }, h('span', {}, h('span', { class: 'lg' }, 'Hent sammenligningen (Excel)'), h('span', { class: 'sh' }, 'Hent (Excel)'))));
         }
         if (ST.do === 'se' && !A.pending) {
